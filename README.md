@@ -1,5 +1,5 @@
 # Ecureuil v0.5 
-![](http://owlso.net/img/owlso.png)
+![](http://owlso.net/img/ecureuil.png)
 
 [![GoDoc](https://godoc.org/github.com/asdine/storm?status.svg)](https://godoc.org/github.com/asdine/storm)
 
@@ -17,24 +17,18 @@ In addition to the examples below, see also the [examples in the GoDoc](https://
 
 *** Not for production this framework require more testing.
 
-## Example
 
-	<include ecureuil.js>
-    connect
-    onevent ...
-    
-    
 
 ## Download
 
-Pre configure [VirtualBox] VM with postgre and ecureuil pre-installed 64 bits Centos 
-https://owlso.net/ecureuil.ovf
-root password is "ecureuil"
-postgresql with user postgre password "ecureuil"
-
-
-Ecureuil source code  
-https://github.com/owlso/ecureuil 
+* Virtual Box Appliance
+	- Pre configure appliance with [Centos 6 - 64 bits](http://owlso.net/ecureuil_centos_64.ovf), postgre and ecureuil pre-installed  
+	- **root password** ecureuil
+	- **postgres password** ecureuil
+	
+	
+* Source code
+	- https://github.com/owlso/ecureuil 
 
 
 
@@ -44,99 +38,82 @@ https://github.com/owlso/ecureuil
 
 - [Getting Started](#getting-started)
 
-- [The Javascript API](#simple-orm)
+- [The Javascript API](#javascriptapi)
 	
-    * System Info 
-	- [getconfig](#declare-your-structures)
-	- [putconfig](#save-your-object)
-	- [getusers](#simple-queries)
-	- [time](#advanced-queries)
-	- [stats](#transactions)
+    * **Functions** 
+    
+    	* System Info 
+			- [getconfig](#getconfig)
+			- [putconfig](#putconfig)
+			- [getusers](#getusers)
+			- [time](#time)
+			- [stats](#stats)
 
-	* Login Management
-	- [registerevent](#options)
-	- [unregisterevent](#node-options)
-	- [login](#node-options)
-	- [logout](#node-options)
-	- [deletedefered](#node-options)
-	- setemailalert
-	- connect
-	- 
-	
-    * Read Data
-		- [one](#simple-keyvalue-store)
-		- [many](#simple-keyvalue-store)
-		- [range](#simple-keyvalue-store)
-		- [all](#simple-keyvalue-store)
-	
-    * Write Data
-
-		- [insert](#boltdb)
-		- [update](#boltdb)
-		- [delete](#boltdb)
-	
-	* Indexes 
-
-		- [indexcreate](#boltdb)
-		- [indexlist](#boltdb)
-		- [indexdrop](#boltdb)
+		* Login Management
+			- [registerevent](#registerevent)
+			- [unregisterevent](#unregisterevent)
+			- [login](#login)
+			- [logout](#logout)
+			- [deletedefered](#deletedefered)
+			- [setemailalert](#setemailalert)
+			- [connect](#connect)
 		
-	* Events 
+    	* Read Data
+			- [one](#simple-keyvalue-store)
+			- [many](#simple-keyvalue-store)
+			- [range](#simple-keyvalue-store)
+			- [all](#simple-keyvalue-store)
+	
+    	* Write Data
+
+			- [insert](#boltdb)
+			- [update](#boltdb)
+			- [delete](#boltdb)
+	
+		* Indexes 
+
+			- [indexcreate](#boltdb)
+			- [indexlist](#boltdb)
+			- [indexdrop](#boltdb)
+		
+	* **Events** 
 
 		- [onupdate](#boltdb)
 		- [oninsert](#boltdb)
 		- [ondelete](#boltdb)
 		- [ondelete](#boltdb)
 		- [onconfiguration](#boltdb)
-		-   this.onConnect = null;
-            this.onLogin = null;
-            this.onDisconnect = null;
-            this.onRead = null;
-            this.onMessage = null;
-           this.onUsers = null;
-            this.onError = null;
-            this.onStats = null;
-            this.onTime = null;
-            this.onIndexes = null;
-            this.onRegisterEvent = null;
-         
-      properties:
-         
-          this.connected = false;
-            this.username =  "";
-            this.logged = false;
-            this.registerevents =  [];
-	        this.serversocket = null;
-            
-        
-	
-- [The Users Rights](#simple-orm)
+		- [onconnect](#onconnect)
+		- [onlogin](#onlogin)
+		- [ondisconnect](#ondisconnect)
+		- [onread](#onread)
+		- [onmessage](#onmessage)
+		- [onusers](#onusers)
+		- [onerror](#onerror)
+		- [onstats](#onstats)
+		- [ontime](#ontime)
+		- [onindexes](#onindexes)
+		- [onregisterevent](#onregisterevent)
+		
+	* **Properties** 
+		- [connected](#propertyconnected)
+		- [username](#propertyusername)
+		- [logged](#propertylogged)
+		- [registerevents](#propertyregisterevents)
+		- [serversocket](#propertyserversocket)	
     
-    users rights are not saved in the SQL they are saved in the local database 
-    ecureuil.db
+	* **Other info** 
+  	- [Reserved Properties within your JSON objects](#simple-orm)
     
-    each users can be granted rights to read or write in buckets and special rights
+- [**Users Rights**](#simple-orm)
     
-    - admin
-    - download
-    - stats-read
-    - users-delete
-    - xxxxxx-read  to read a specific bucket
-    - xxxxxx-write to write in a specific bucket
-    - xxxxxx-delete to delete items from a specific bucket 
-    - 
+- [**Log's**](#simple-orm)
     
-- [The LOG's](#simple-orm)
-
-	- [Users activiy](#simple-orm)
-
-		All users activities are logged into a specific table in the SQL they are 
-        keep for X days where x is the configurable number of days.  This can be set in the system configuration.
-
-	- [System errors](#simple-orm)
-
-		All error that occures in the ecureuil framework are saved into a subfolder call logs/ with rotating log files.
-        
+- [**License**](#simple-orm)
+    
+- [**Credits**](#simple-orm)
+    
+    
 
     
     
@@ -144,41 +121,220 @@ https://github.com/owlso/ecureuil
 
 ## Getting Started
 
-Step 1 install Postgresql here more information if required 
-Step 2 install you favorite linux distro, create a folder and copy ecureuil executable in it.
-Step 3 run sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
+The easiest way to get started is to download the pre configure appliance, if you want to build your own server follow theses steps.
 
-host is the IP of your POSTGRESQL 
-user is a user already existing in the database that have the rights to create database 
-password is self explanatory.
+1. Install you favorite linux distro, create a folder and copy [ecureuil executable](http://github.com/owlso/ecureuil) in it.
+1. Install [Postgre sql database](https://www.postgresql.org/) version 9.6 or higher here more information if required 
+1. Build the database: sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
 
-This user and password will not be saved, ecureuil will generate a username “ecureuiladmin” with a random 30 characters password, this password will be save locally into ecureuil.db this file also contain the access rights for each users and the system configuration.  Only the user running ecureuil and the system admin should have access to this file.
+	**Where**
+	Host is the IP of your postgre database 
+User is a user already existing in the database that have rights to create new database and new user
+password for this user.
 
-If you want to uninstall ecureuil from your postgresql you can do so with the follwing command:
+	*Provided username and password are not going to be saved, ecureuil will generate a new username **ecureuiladmin** with a random 30 characters password, this password will be save locally into ecureuil.db this file also contain the access rights for each users and the system configuration.  Only the user running ecureuil and the system admin should have access to this file.*
+
+	At any point if you want to uninstall ecureuil from your postgres you can do so with the following command:
 sudo ./ecureuil -dropdb -host=192.168.56.101 -user=postgres -password=bitnami
 
 
 
-## API functions
+## The Javascript API
 
+In order to use ecureuil framework within you javascript application you simply need to import the javascript client.  This file is available in the public/ folder on github.  See bellow for the list of functions, events and properties you can access.
 ```go
-import "github.com/asdine/storm"
+<script src="js/ecureuil.js"></script>
+var ecureuil = new Ecureuil();
+
 ```
 
-## Open a database
-
-Quick way of opening a database
+### **function getconfig();**
 ```go
-db, err := storm.Open("my.db")
-
-defer db.Close()
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.getconfig();
 ```
+-	This function will contact the server and request the system configuration.  You must be logged-on with a user that has admin rights in order for the server to respond with the configuration.  The event **onconfiguration** will be fired once it is received.
 
-`Open` can receive multiple options to customize the way it behaves. See [Options](#options) below
+-	The configuration will be sent as a JSON object see the event **onconfiguration** for more details.
 
-## Simple ORM
+### **function putconfig(configuration);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+configuration = {};
+configuration.smtp.ip = 10.0.0.1;
+...
+ecureuil.putconfig(configuration);
+```
+-	This function will contact the server and request to overwrite the system configuration with the object provided.  You must be logged-on with a user that has admin rights in order for the server to accept your request.  See the event **onconfiguration** to view the structure of the configuration object.
 
-### Declare your structures
+-	An acknowledge will be receive over **onmessage** if the new configuration has been accepted.
+
+
+### **function getusers();**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+...
+ecureuil.getusers();
+```
+-	This function will contact the server and request the list of all users and their properties.  This allowed you to list all the user in the system and modify their configuration and access rights.  You must be logged-on with a user that has admin rights in order for the server to accept your request.  The event **onusers** will be fired once the server reply with the list of users.  See the event **onusers** to view the structure of the users object.
+
+### **function time();**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+...
+ecureuil.time();
+```
+-	This function will contact the server and request the current time in UTC+0 in unix EPOCH.
+
+### **function stats();**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+...
+ecureuil.stats();
+```
+-	This function will contact the server and request statistics about the ecureuil server.  It will return physical information about the hardware such as disk free space, cpu utilization and information about the local database that contain users rights.  You must be logged-on with a user that has admin rights in order for the server to accept your request.  The event **onstats** will be fired once the server reply with the statistics.  See the event **onstats** to view the structure of the statistics object return by the server.
+
+
+### **function login(username, password);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+```
+-	This function provide the backend server with credential, once the credential are verified you will be granted access rights.  The event **onlogin** will be fired once the server reply to confirmed you have provided correct credentials.  Once the login is accepted it will remain until the websocket connection is closed.  If the websocket connection close you will have to provide credential again.
+
+
+### **function logout();**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+...
+ecureuil.logout();
+```
+-	This function tell the backend to release all access rights granted to this websocket connection and grant access rights to a guess user.  The connection is not lost, only the access rights are discarded.  The function does not generate an event.
+
+### **function registerevent(bucketname);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+...
+ecureuil.registerevent(bucketname);
+```
+-	This function tell the backend to generate an event every time data in the bucket "bucketname" is updated, deleted or added.  Bucket are equivalent or collection in the NoSQL world or table in SQL database.  You must be logged-on with a user that have read access to the bucket your are requesting access to.  Events fired are **onupdate**, **oninsert** and **ondelete**.
+
+### **function unregisterevent(bucketname);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+...
+ecureuil.registerevent(bucketname);
+ecureuil.unregisterevent(bucketname);
+```
+-	This function work with registerevent, once you no longer want to receive event about changes inside a specific bucket you can unregister.  This function does not generate any event.
+
+### **function setemailalert(emailaddress, bucketnames);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+...
+ecureuil.setemailalert("marc.gauthier3@gmail.com", ["CHAT-MESSAGES", "GENERAL-INFO"]);
+```
+-	Ecureuil broadcast change to the database via websocket but also send email alert when data is inserted or updated.  This function allow to request that a specific email receive alert about changes in specific buckets.  If the database already have a list of buckets to monitor for this specific email address they will be replaced with this new list of buckets.  The change will occur in two phase.  The call to setemailalert will generate a confirmation email to the user.  Once the user open his email and click on the confirmation link than the changes become permanent.
+
+
+### **function connect(url);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+...
+ecureuil.one("INCIDENTS", "starttime", 2321232, "BIGINT");
+```
+-	This will generate a websocket connection between the Ecureuil backend and the client library.  Once the connection is eastablished the event **onconnect** will be fired.  Your url must always start with wss Ecureuil only support secure connection and must end with /wss/ this is the path that the mux on the backend is expecting to indicate that a websocket connection is requested..
+
+
+### **function one(bucketname, searchfield, value, fieldtype);**
+```go
+var ecureuil = new Ecureuil();
+ecureuil.connect("wss://yourwebsite.com/wss/");
+... once connection is eastablished you can call
+ecureuil.login(username, password);
+...
+ecureuil.one("INCIDENTS", "starttime", 2321232, "BIGINT");
+```
+-	This function will search the database for the first entry that will match the request.  You need to provide the bucketname where to search, the fieldname the value you are looking for and what type of field the fieldname represent; valid options are INT, BIGINT, TEXT, DECIMAL, DOUBLE. Once data is found and return the event **onread** will be fired.  
+
+
+
+
+    		- [many](#simple-keyvalue-store)
+			- [range](#simple-keyvalue-store)
+			- [all](#simple-keyvalue-store)
+	
+    	* Write Data
+
+			- [insert](#boltdb)
+			- [update](#boltdb)
+			- [delete](#boltdb)
+	
+		* Indexes 
+
+			- [indexcreate](#boltdb)
+			- [indexlist](#boltdb)
+			- [indexdrop](#boltdb)
+		
+
+### Events
+
+		- [onupdate](#boltdb)
+		- [oninsert](#boltdb)
+		- [ondelete](#boltdb)
+		- [ondelete](#boltdb)
+		- [onconfiguration](#boltdb)
+		- [onconnect](#onconnect)
+		- [onlogin](#onlogin)
+		- [ondisconnect](#ondisconnect)
+		- [onread](#onread)
+		- [onmessage](#onmessage)
+		- [onusers](#onusers)
+		- [onerror](#onerror)
+		- [onstats](#onstats)
+		- [ontime](#ontime)
+		- [onindexes](#onindexes)
+		- [onregisterevent](#onregisterevent)
+		
+        
+### Properties
+		
+		- [connected](#propertyconnected)
+		- [username](#propertyusername)
+		- [logged](#propertylogged)
+		- [registerevents](#propertyregisterevents)
+		- [serversocket](#propertyserversocket)
+	
+
+
+
 
 ```go
 type User struct {
@@ -240,6 +396,7 @@ SPECIAL BUCKETS:
 
 
 
+
 SPECIAL PROPERTIES:
 
 property.id
@@ -255,6 +412,8 @@ unix utc time when this item must become Inactive
 
 property.recurrence			
 int 0=not recurrent, 1=every monday, etc.
+
+
 
 type Recurrentdate struct {
 	StartDate             uint64  `json:"startdate"`             // Date to start Recurrence. Note that time and time zone information is NOT used in calculations
@@ -359,6 +518,46 @@ Events:
     onUsers(users)                                          event call when we received the list of users   
 
 */
+
+
+
+    users rights are not saved in the SQL they are saved in the local database 
+    ecureuil.db
+    
+    each users can be granted rights to read or write in buckets and special rights
+    
+    - admin
+    - download
+    - stats-read
+    - users-delete
+    - xxxxxx-read  to read a specific bucket
+    - xxxxxx-write to write in a specific bucket
+    - xxxxxx-delete to delete items from a specific bucket 
+
+    [**Reserved Properties within your JSON objects**](#simple-orm)
+    
+    [**Users Rights**](#simple-orm)
+    
+    [**Log's**](#simple-orm)
+    
+    [**License**](#simple-orm)
+    
+    [**Credits**](#simple-orm)
+    
+    s
+
+- [The LOG's](#simple-orm)
+
+	- [Users activiy](#simple-orm)
+
+		All users activities are logged into a specific table in the SQL they are 
+        keep for X days where x is the configurable number of days.  This can be set in the system configuration.
+
+	- [System errors](#simple-orm)
+
+		All error that occures in the ecureuil framework are saved into a subfolder call logs/ with rotating log files.
+        
+
 
 ## License
 
