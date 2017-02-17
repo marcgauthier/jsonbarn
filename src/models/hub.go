@@ -44,7 +44,6 @@ ______________________________________________________________________________
 package models
 
 import (
-	"broadcast"
 	"encoding/json"
 	"strconv"
 	"time"
@@ -157,7 +156,7 @@ func checkforBroadcast() {
 		var msg []byte
 
 		for {
-			if msg = broadcast.Get(); msg == nil {
+			if msg = BroadcastGet(); msg == nil {
 				break
 			}
 			hub.broadcast <- msg
@@ -342,7 +341,7 @@ func (c *Client) read() {
 				err = nil
 				user = PrepMessageForUser("Successfully logout!")
 
-			} else if packet.Action == "READALL" || packet.Action == "READONE" || packet.Action == "READFIND" || packet.Action == "READRANGE" {
+			} else if packet.Action == "QUERY" || packet.Action == "READALL" || packet.Action == "READONE" || packet.Action == "READFIND" || packet.Action == "READRANGE" {
 
 				/*
 				   Request range of information from a bucket should contain:

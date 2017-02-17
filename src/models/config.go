@@ -111,6 +111,12 @@ type TConfig struct {
 	EmailAlertSubject string `json:"emailalertsubject"`
 
 	EmailAlertBody string `json:"emailalertbody"`
+
+	MaxIdleSQLConns int `json:"maxidlesqlconns"`
+
+	MaxOpenSQLConns int `json:"maxopensqlconns"`
+
+	MaxLifetimeSQLConns int `json:"maxlifetimesqlconns"` // in seconds default to 0 unlimited
 }
 
 /*ConfigBUCKET name of the command send by front-end to access the configuration.
@@ -227,6 +233,9 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
 	Configuration.LoginPerMin = item.LoginPerMin
 	Configuration.EmailAlertSubject = item.EmailAlertSubject
 	Configuration.EmailAlertBody = item.EmailAlertBody
+	Configuration.MaxIdleSQLConns = item.MaxIdleSQLConns
+	Configuration.MaxOpenSQLConns = item.MaxOpenSQLConns
+	Configuration.MaxLifetimeSQLConns = item.MaxLifetimeSQLConns
 
 	// ReSerialize packet to save and do not broadast.
 	// user can set any key they want but "currentconfig" need to be use
@@ -283,6 +292,9 @@ func ConfigurationINIT() {
 		Configuration.EmailAlertSubject = "Email Alert Change request confirmation!"
 		Configuration.EmailAlertBody = "Hello, you have recently made a request to receive or stop receiving email alert from our system" +
 			" please click the link bellow to confirm you want to activate the changes."
+		Configuration.MaxOpenSQLConns = 0
+		Configuration.MaxIdleSQLConns = 0
+		Configuration.MaxLifetimeSQLConns = 0
 
 		err := DB.Save(&Configuration)
 		if err != nil {

@@ -65,7 +65,6 @@ ______________________________________________________________________________
 package models
 
 import (
-	"broadcast"
 	"bytes"
 	"database/sql"
 	"encoding/base64"
@@ -123,6 +122,10 @@ func Open() {
 	logger.Trace("Opening connection to POSTGRESQL database")
 
 	sqldb, err = sql.Open("postgres", connstring)
+
+	sqldb.SetMaxIdleConns(Configuration.MaxIdleSQLConns)
+	sqldb.SetMaxOpenConns(Configuration.MaxOpenSQLConns)
+	sqldb.SetConnMaxLifetime(time.Second * time.Duration(Configuration.MaxLifetimeSQLConns))
 
 	if err != nil {
 		logger.Error(err.Error())
@@ -366,6 +369,105 @@ func DBListIndex(packet *MsgClientCmd) ([]byte, error) {
 
 }
 
+type tquery struct {
+	Fieldname  string   `json:"property"`
+	Type       string   `json:"type"`
+	Searchtype string   `json:"st"`
+	Values     []string `json:"values"`
+	LogicOp    string   `json:"logic"`
+}
+
+/*DBQuery advance query for a getBucket
+
+Func Query (bucketname, query { items: [ fieldname, type, searchtype, values [ 1 or 2 ],  logical  ] } )
+
+searchType can be :  “EQ”, “GT”, “GTE”, “LT”, “LTE” “BETWEEN”
+type = BIGINT, INT, TEXT, DECIMAL, DOUBLE
+Values is text values 1 items except for BETWEEN is two values
+Logical is “AND” or “OR” or “” for last item
+
+ packet.bucketname
+ packet.key contain the query
+
+CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ")
+
+*/
+
+func buildsubquery(item *tquery) string {
+
+	qt := ""
+	if item.Type == "TEXT" {
+		qt = "'"
+	}
+
+	switch item.Searchtype {
+
+	case "BETWEEN":
+		return "CAST(" + createJSONSQLFieldName(item.Fieldname) + " AS " + item.Type + ") BETWEEN " + qt + item.Values[0] + qt + " AND " + qt + item.Values[1] + qt + " " + item.LogicOp
+	case "EQ":
+		return "CAST(" + createJSONSQLFieldName(item.Fieldname) + " AS " + item.Type + ") = " + qt + item.Values[0] + qt + " " + item.LogicOp
+	case "GT":
+		return "CAST(" + createJSONSQLFieldName(item.Fieldname) + " AS " + item.Type + ") > " + qt + item.Values[0] + qt + " " + item.LogicOp
+	case "GTE":
+		return "CAST(" + createJSONSQLFieldName(item.Fieldname) + " AS " + item.Type + ") >= " + qt + item.Values[0] + qt + " " + item.LogicOp
+	case "LT":
+		return "CAST(" + createJSONSQLFieldName(item.Fieldname) + " AS " + item.Type + ") < " + qt + item.Values[0] + qt + " " + item.LogicOp
+	case "LTE":
+		return "CAST(" + createJSONSQLFieldName(item.Fieldname) + " AS " + item.Type + ") <= " + qt + item.Values[0] + qt + " " + item.LogicOp
+	default:
+		return ""
+	}
+}
+
+func buildQuery(bucketname string, querystring []byte) string {
+
+	validtypes := []string{"BIGINT", "INT", "TEXT", "DECIMAL", "DOUBLE"}
+	searchtypes := []string{"EQ", "GT", "GTE", "LT", "LTE", "BETWEEN"}
+	logicops := []string{"AND", "OR", ""}
+
+	queryItems := []tquery{}
+
+	err := json.Unmarshal(querystring, &queryItems)
+	if err != nil {
+		logger.Error("Invalid query items " + string(querystring))
+		return ""
+	}
+
+	subquery := ""
+
+	for i := 0; i < len(queryItems); i++ {
+
+		if queryItems[i].Fieldname == "" {
+			return ""
+		}
+		if !IsStrInArray(queryItems[i].Type, validtypes) {
+			return ""
+		}
+		if !IsStrInArray(queryItems[i].Searchtype, searchtypes) {
+			return ""
+		}
+		if !IsStrInArray(queryItems[i].LogicOp, logicops) {
+			return ""
+		}
+		if queryItems[i].Searchtype == "BETWEEN" && len(queryItems[i].Values) != 2 {
+			return ""
+		}
+		if queryItems[i].Searchtype != "BETWEEN" && len(queryItems[i].Values) != 1 {
+			return ""
+		}
+
+		subquery += buildsubquery(&queryItems[i]) + " "
+
+		if i+1 == len(queryItems) && queryItems[i].LogicOp != "" {
+			// last item can't finish with AND or OR
+			return ""
+		}
+
+	}
+
+	return subquery
+}
+
 /*DBRead extract one item from database
 provide table, field and search value
 */
@@ -394,7 +496,25 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 
 	var rows *sql.Rows
 
-	if packet.Action == "READALL" {
+	if packet.Action == "QUERY" {
+
+		logger.Trace("receive query request")
+
+		sqlquery := buildQuery(packet.Bucketname, packet.Data)
+
+		if sqlquery == "" {
+			logger.Error("No query could be build")
+			return PrepMessageForUser("No query could be build"), nil
+		}
+
+		sqlquery = "select row_to_json(sub)  ::text as data FROM (SELECT ID, CREATEDBY, CREATEDTIME, UPDATEDBY, UPDATEDTIME, BUCKETNAME, CREATEDONNETWORK," +
+			"CREATEDONSERVER, DATA FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND (" + sqlquery + ") limit $2) sub;"
+
+		logger.Trace("buildquery = " + sqlquery)
+
+		rows, err = sqldb.Query(sqlquery, packet.Bucketname, Configuration.MaxReadItemsFromDB)
+
+	} else if packet.Action == "READALL" {
 
 		sqlquery = "select row_to_json(sub)  ::text as data FROM (SELECT ID, CREATEDBY, CREATEDTIME, UPDATEDBY, UPDATEDTIME, BUCKETNAME, CREATEDONNETWORK," +
 			"CREATEDONSERVER, DATA FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 limit $2) sub;"
@@ -1393,7 +1513,7 @@ func waitForNotification(l *pq.Listener) error {
 			if Notification.Action == "DELETE" || Notification.Action == "UPDATE" || Notification.Action == "INSERT" {
 
 				logger.Trace("Receive event from POSTGRESQL: " + Notification.Action + " for bucket: " + Notification.Bucketname + " " + string(n.Extra))
-				broadcast.Put(Notification.Bucketname, n.Extra)
+				BroadcastPut(Notification.Bucketname, n.Extra)
 
 			}
 
