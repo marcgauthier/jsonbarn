@@ -220,11 +220,12 @@ subject text document containing the html template for the subject.
 func GenerateEmailTemplate(bucketname string, jsonobject string) error {
 
 	// Extract status from the jsonobject we need it to select the correct template!
-	value := gjson.Get(jsonobject, "data.status")
+	value := gjson.Get(jsonobject, "status")
 	status := value.Int()
 
 	// get data from this json that contain data + bucket + ...
-	data := gjson.Get(jsonobject, "data")
+	data := gjson.Get(jsonobject, "")
+
 	items, ok := gjson.Parse(data.String()).Value().(map[string]interface{})
 	if !ok {
 		// not a map

@@ -216,6 +216,14 @@ func UserUpdate(packet *MsgClientCmd) error {
 
 	item := TUser{}
 
+	// deserialize object to confirm it's valid
+	//************************************************
+	errcode := json.Unmarshal(packet.Data, &item)
+	if errcode != nil {
+		logger.Error("Unable to unmarshal data provided by User: " + packet.Username + " for bucket " + packet.Bucketname + " error: " + errcode.Error())
+		return errors.New("Unreadable data")
+	}
+
 	// check if user requesting the action has admin right.
 	admin, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "admin")
 
@@ -227,7 +235,7 @@ func UserUpdate(packet *MsgClientCmd) error {
 	/* Check if the user we are going to modify has admin rights */
 	//************************************************************
 
-	if err := VerifyUserHasRight([]byte(packet.Key), "admin"); err == nil {
+	if err := VerifyUserHasRight([]byte(item.ID), "admin"); err == nil {
 
 		// The user we are trying to update has admin rights make sure the
 		// user actioning the request also had admin rights.
@@ -238,17 +246,10 @@ func UserUpdate(packet *MsgClientCmd) error {
 		}
 
 	} else {
-		logger.Error("Unable to verify rights of " + string(packet.Key) + " " + err.Error())
-		return errors.New("Unable to verify rights of " + string(packet.Key))
+		// user to be updated does not have admin right fine we can edit him!
 	}
 
-	// deserialize object to confirm it's valid
-	//************************************************
-	errcode := json.Unmarshal(packet.Data, &item)
-	if errcode != nil {
-		logger.Error("Unable to unmarshal data provided by User: " + packet.Username + " for bucket " + packet.Bucketname + " error: " + errcode.Error())
-		return errors.New("Unreadable data")
-	}
+	logger.Trace("Checking for new password")
 
 	/* Check if a password reset is requested.
 	//************************************************/
@@ -281,6 +282,8 @@ func UserUpdate(packet *MsgClientCmd) error {
 
 	}
 
+	logger.Trace("Checking for special rights")
+
 	/* Check if user is trying to add special rights: admin, password-reset, db-download */
 	//************************************************************************************
 	if IsStrInArray("admin", item.Rights) || IsStrInArray("db-download", item.Rights) || IsStrInArray("password-reset", item.Rights) {
@@ -295,14 +298,18 @@ func UserUpdate(packet *MsgClientCmd) error {
 
 	}
 
+	logger.Trace("Saving user")
+
 	// save user in database.
 	//************************************************
 	err = UserSave(&item, item.NewPassword != "")
 	if err == nil {
-		logger.Info(packet.Username + " has modify " + string(packet.Key) + ".")
+		logger.Info(packet.Username + " has modify " + string(item.ID))
 
 		go DBLog("USERS", packet.Username, packet.Action, []byte(""), packet.Data)
 
+	} else {
+		logger.Trace("Save error: " + err.Error())
 	}
 	return err
 
@@ -340,7 +347,9 @@ func UserSave(user *TUser, PasswordHasChanged bool) error {
 	err := DB.One("ID", user.ID, &item)
 
 	if err != nil {
-		return err
+		if err.Error() != "not found" {
+			return err
+		}
 	}
 
 	// Copy the user password into the new user information
@@ -364,7 +373,7 @@ func VerifyUserHasRight(username []byte, rightname string) error {
 	err := DB.One("ID", string(username), &user)
 
 	if err != nil {
-		logger.Trace(err.Error())
+		logger.Trace("VerifyUserHasRight " + string(username) + " " + err.Error())
 		return err
 	}
 

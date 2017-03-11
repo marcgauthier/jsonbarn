@@ -11,6 +11,8 @@ import (
 	"github.com/antigloss/go/logger"
 )
 
+var cacheIsEnabled = false
+
 type cachefile struct {
 	validuntil uint64
 	buf        []byte
@@ -36,27 +38,30 @@ func GetStaticFile(filepath string) ([]byte, string, error) {
 
 	ext := strings.ToLower(path.Ext(filepath))
 
-	lock.RLock()
-	c, ok := filecache[filepath]
-	lock.RUnlock()
+	if cacheIsEnabled {
 
-	//do something here
+		lock.RLock()
+		c, ok := filecache[filepath]
+		lock.RUnlock()
 
-	if ok {
+		//do something here
 
-		// key exists
+		if ok {
 
-		if c.validuntil >= uint64(time.Now().UTC().Unix()) {
+			// key exists
 
-			logger.Trace("Serving cache file thru HTTPS " + filepath)
-			return c.buf, ext, nil
+			if c.validuntil >= uint64(time.Now().UTC().Unix()) {
+
+				logger.Trace("Serving cache file thru HTTPS " + filepath)
+				return c.buf, ext, nil
+			}
+
+			// cache exists but has expired
+			lock.Lock()
+			delete(filecache, filepath)
+			lock.Unlock()
+
 		}
-
-		// cache exists but has expired
-		lock.Lock()
-		delete(filecache, filepath)
-		lock.Unlock()
-
 	}
 
 	var cache cachefile

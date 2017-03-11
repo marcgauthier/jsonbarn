@@ -52,6 +52,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const websocketBufferSize = 8192
+
 /*MsgClientCmd Structure use by the client to send command to the backend.
  */
 type MsgClientCmd struct {
@@ -126,8 +128,12 @@ func (hub *Hub) start() {
 					select {
 					case conn.send <- msg:
 					default:
-						close(conn.send)
-						delete(hub.clients, conn)
+						// oups! no message sent
+						// pause 1/100 of second and try again
+						time.Sleep(10 * time.Millisecond)
+
+						// send blocking!
+						conn.send <- msg
 					}
 				}
 
@@ -179,7 +185,7 @@ func ClientAdd(conn *websocket.Conn) {
 
 	client := &Client{
 		ws:             conn,
-		send:           make(chan []byte),
+		send:           make(chan []byte, websocketBufferSize),
 		registerEvents: []string{},
 		password:       "",
 		username:       "",
@@ -246,16 +252,20 @@ func (c *Client) write() {
 
 			if !ok {
 
-				logger.Trace("websocket closed: " + strconv.Itoa(websocket.CloseMessage))
-				c.ws.WriteMessage(websocket.CloseMessage, []byte{}) //Data        json.RawMessage `json:"data"`       // contain the JSON serialized object to be saved, it will be HTML Sanitized
+				logger.Trace("channel send error closed: " + string(message))
+
+				//c.ws.WriteMessage(websocket.CloseMessage, []byte{})
+				//Data        json.RawMessage `json:"data"`       // contain the JSON serialized object to be saved, it will be HTML Sanitized
 
 				return
-			}
 
-			logger.Trace(string(message))
+			} else {
 
-			if message != nil {
-				c.ws.WriteMessage(websocket.TextMessage, message)
+				logger.Trace(string(message))
+
+				if message != nil && len(message) > 0 {
+					c.ws.WriteMessage(websocket.TextMessage, message)
+				}
 			}
 
 		}
@@ -276,11 +286,11 @@ func (c *Client) read() {
 
 		if err != nil {
 
-			logger.Warn("Websocket closed: " + err.Error())
+			logger.Warn("client.read websocket error: " + err.Error())
 			// user as probably disconnected!!! from from the Hub List and terminate Go function
-			hub.removeClient <- c
-			c.ws.Close()
 			break
+			// break will exit the loop and execute defer removeclient+close
+
 		}
 
 		/*
@@ -302,7 +312,8 @@ func (c *Client) read() {
 
 			// command sent is not a valid JSON send a warning to the user.
 			// do not log returned error, because the error is cause by the frontend not the backend
-			c.ws.WriteMessage(websocket.TextMessage, PrepMessageForUser("JSON OBJECT provided was invalid: "+SanitizeStrHTML(err.Error())))
+			// c.ws.WriteMessage(websocket.TextMessage, PrepMessageForUser("JSON OBJECT provided was invalid: "+SanitizeStrHTML(err.Error())))
+			c.send <- PrepMessageForUser("JSON OBJECT provided was invalid: " + SanitizeStrHTML(err.Error()))
 
 		} else {
 
@@ -498,10 +509,7 @@ func (c *Client) read() {
 
 			if user != nil {
 				logger.Trace("Sending: " + string(user))
-				senderr := c.ws.WriteMessage(websocket.TextMessage, user)
-				if senderr != nil {
-					logger.Error(senderr.Error())
-				}
+				c.send <- user
 			}
 
 			if err != nil {
