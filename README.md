@@ -14,11 +14,6 @@
 
 
 ## Download
-
-* Virtual Box Appliance
-	- Pre configure appliance with [Centos 6 - 64 bits](http://owlso.net/ecureuil_centos_64.ovf), postgre and ecureuil pre-installed  
-		- **root password** ecureuil
-		- **postgres password** ecureuil
 	
 	
 * Source code
@@ -117,10 +112,9 @@
 
 ## Getting Started
 
-The easiest way to get started is to download the pre configure appliance, if you want to build your own server follow theses steps.
 
 1. Install you favorite linux distro, create a folder and copy [ecureuil executable](http://github.com/owlso/ecureuil) in it.
-1. Install [Postgre sql database](https://www.postgresql.org/) version 9.6 or higher here more information if required 
+1. Install [Postgre sql database](https://www.postgresql.org/) version 9.6 or higher.
 1. Build the database: sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
 
 	**Where**
