@@ -1,4 +1,4 @@
-# Ecureuil v0.5 
+# Ecureuil v1.0 
 ![](http://owlso.net/img/ecureuil.png)
 
 [![GoDoc](https://godoc.org/github.com/asdine/storm?status.svg)](https://godoc.org/github.com/asdine/storm)
@@ -11,8 +11,6 @@
 - Built for simplicity it allow you to start developing rapidly without having to learn a complicated API.  
 - Ecureuil is fully open source and develop in GO and use postgresql as the backend database.
 
-
-*** Not for production this framework is currently under testing. **
 
 
 ## Download
@@ -759,19 +757,19 @@ subject string // html template for the subject
 
 The following properties are either required or are generating action by the database.
 
--	property.id
+-	property.$id
 	-	Each document in the bucket must have a unique id to be able to save and retrive information. You can manualy set the id or let Ecureuil generate the id automatically the later is suggested. 		
 
--	property.starttime			
+-	property.$starttime			
 	-	Each document must have a starttime this is in most case the time that the document was created.  In some case you want data to be activated by time.  According to the starttime and endtime properties the status will be changed.
 	
--	property.endtime 			
+-	property.$endtime 			
 	-	Same as starttime except this is for endtime.  
 	
--	property.status  			
+-	property.$status  			
 	-	Each document have a status 0 is pending the docuement data is not "activated" 1 = active and 2 = completed.  You do not have to change the value of this propertie it will be change automatically by a background task running in the server.  When starttime is reach status will change to 1 and when endtime is reached status will change to 2.  
 
--	property.recurrence				
+-	property.$recurrence				
 	-	Item can have a starttime and endtime but they can also be reccurrent if you set a recurrence object within you object when the endtime is reached a new starttime and endtime will be generated and status will change to either pending or active.
 
 The Recurrence struct is modeled after the recurring schedule data model used by both Microsoft Outlook and Google Calendar for recurring appointments. Just like Outlook, you can pick from Daily ("D"), Weekly ("W"), Monthly ("M") and Yearly ("Y") recurrence pattern codes. Each of those recurrence patterns then require the corresponding information to be filled in.
