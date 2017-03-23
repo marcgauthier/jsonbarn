@@ -510,14 +510,14 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 			return PrepMessageForUser("No query could be build"), nil
 		}
 
-		sqlquery = "select ecureuil.jsonb_merge(jsonb_build_object('$id', ID," +
+		sqlquery = "select DATA, jsonb_build_object('$id', ID," +
 			"'$bucketname', BUCKETNAME," +
 			"'$createdby', CREATEDBY," +
 			"'$updatedby', UPDATEDBY," +
 			"'$createdtime', CREATEDTIME," +
 			"'$updatedtime', UPDATEDTIME," +
 			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER), DATA) FROM ecureuil.jsonobjects WHERE bucketname = $1 AND (" + sqlquery + ") limit $2;"
+			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE bucketname = $1 AND (" + sqlquery + ") limit $2;"
 
 		logger.Trace("buildquery = " + sqlquery)
 
@@ -525,28 +525,28 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 
 	} else if packet.Action == "READALL" {
 
-		sqlquery = "select ecureuil.jsonb_merge(jsonb_build_object('$id', ID," +
+		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
 			"'$bucketname', BUCKETNAME," +
 			"'$createdby', CREATEDBY," +
 			"'$updatedby', UPDATEDBY," +
 			"'$createdtime', CREATEDTIME," +
 			"'$updatedtime', UPDATEDTIME," +
 			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER), DATA) FROM ecureuil.jsonobjects WHERE bucketname = $1 limit $2;"
+			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE bucketname = $1 limit $2;"
 
 		logger.Trace(sqlquery + " " + packet.Bucketname + " " + strconv.Itoa(Configuration.MaxReadItemsFromDB))
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, Configuration.MaxReadItemsFromDB)
 
 	} else if packet.Action == "READONE" {
 
-		sqlquery = "select ecureuil.jsonb_merge(jsonb_build_object('$id', ID," +
+		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
 			"'$bucketname', BUCKETNAME," +
 			"'$createdby', CREATEDBY," +
 			"'$updatedby', UPDATEDBY," +
 			"'$createdtime', CREATEDTIME," +
 			"'$updatedtime', UPDATEDTIME," +
 			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER), DATA) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit 1;"
+			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit 1;"
 
 		logger.Trace(sqlquery)
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, packet.Key)
@@ -557,14 +557,14 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 		logger.Trace("searchfield=" + packet.SearchField)
 		logger.Trace("field=" + packet.Field)
 
-		sqlquery = "select ecureuil.jsonb_merge(jsonb_build_object('$id', ID," +
+		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
 			"'$bucketname', BUCKETNAME," +
 			"'$createdby', CREATEDBY," +
 			"'$updatedby', UPDATEDBY," +
 			"'$createdtime', CREATEDTIME," +
 			"'$updatedtime', UPDATEDTIME," +
 			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER), DATA) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit $3;"
+			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit $3;"
 
 		logger.Trace(sqlquery)
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, packet.Key, Configuration.MaxReadItemsFromDB)
@@ -573,14 +573,14 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 
 		f := createJSONSQLFieldName(packet.SearchField)
 
-		sqlquery = "select ecureuil.jsonb_merge(jsonb_build_object('$id', ID," +
+		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
 			"'$bucketname', BUCKETNAME," +
 			"'$createdby', CREATEDBY," +
 			"'$updatedby', UPDATEDBY," +
 			"'$createdtime', CREATEDTIME," +
 			"'$updatedtime', UPDATEDTIME," +
 			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER), DATA) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + f + " AS " + packet.Field + ") BETWEEN $2 AND $3 limit $4;"
+			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + f + " AS " + packet.Field + ") BETWEEN $2 AND $3 limit $4;"
 
 		logger.Trace(sqlquery)
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, packet.Key, packet.MaxKey, Configuration.MaxReadItemsFromDB)
@@ -676,7 +676,7 @@ func DBDelete(packet *MsgClientCmd, defered bool) ([]byte, error) {
 
 	logger.Trace("access granted to delete.")
 
-	_, err = sqldb.Query("DELETE from ecureuil.JSONOBJECTS WHERE ID = $1", packet.Key)
+	_, err = sqldb.Exec("DELETE from ecureuil.JSONOBJECTS WHERE ID = $1", packet.Key)
 
 	if err != nil {
 		logger.Trace(err.Error())
@@ -684,7 +684,7 @@ func DBDelete(packet *MsgClientCmd, defered bool) ([]byte, error) {
 	}
 
 	// delete associated defered commands
-	_, err = sqldb.Query("DELETE from ecureuil.JSONOBJECTS WHERE BUCKETNAME = 'DEFERED' AND DATA->>'key' = $1", packet.Key)
+	_, err = sqldb.Exec("DELETE from ecureuil.JSONOBJECTS WHERE BUCKETNAME = 'DEFERED' AND DATA->>'key' = $1", packet.Key)
 
 	if err != nil {
 		logger.Trace(err.Error())
@@ -1147,7 +1147,7 @@ func CreateDB(host, user, pass *string) string {
 		"createdonserver = NEW.CREATEDONSERVER;" +
 		"createdonnetwork = NEW.CREATEDONNETWORK;" +
 		"END IF;" +
-		"notification = ecureuil.jsonb_merge(jsonb_build_object(" +
+		"notification = DATA || jsonb_build_object(" +
 		"'action', TG_OP," +
 		"'$id', ID," +
 		"'$bucketname', BUCKETNAME," +
@@ -1156,33 +1156,10 @@ func CreateDB(host, user, pass *string) string {
 		"'$createdtime', CREATEDTIME," +
 		"'$updatedtime', UPDATEDTIME," +
 		"'$createdonnetwork', CREATEDONNETWORK," +
-		"'$createdonserver', CREATEDONSERVER), DATA);" +
+		"'$createdonserver', CREATEDONSERVER);" +
 		"PERFORM pg_notify('events_ecureuil',notification::text);" +
 		"RETURN NULL;" +
 		"END;$$ LANGUAGE plpgsql;")
-
-	if err != nil {
-		return err.Error()
-	}
-
-	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.jsonb_merge(jsonb1 JSONB, jsonb2 JSONB)" +
-		" RETURNS JSONB AS $$ " +
-		" DECLARE " +
-		" result JSONB;" +
-		" v RECORD;" +
-		" BEGIN " +
-		" result = (" +
-		" SELECT json_object_agg(KEY,value)" +
-		" FROM" +
-		"  (SELECT jsonb_object_keys(jsonb1) AS KEY," +
-		"          1::int AS jsb," +
-		"          jsonb1 -> jsonb_object_keys(jsonb1) AS value" +
-		"   UNION SELECT jsonb_object_keys(jsonb2) AS KEY," +
-		"                2::int AS jsb," +
-		"                jsonb2 -> jsonb_object_keys(jsonb2) AS value ) AS t1" +
-		"       );" +
-		"   RETURN result;" +
-		" END;$$ LANGUAGE plpgsql;")
 
 	if err != nil {
 		return err.Error()

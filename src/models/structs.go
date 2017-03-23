@@ -23,7 +23,7 @@ type TUserGroup struct {
 
 	Rights []string `json:"rights"` // user of this group are givens theses extra rights
 
-	RequireForPlannedIncident bool // this group approved planned incident
+	RequireForPlannedIncident bool `json:"requireforplannedincident"` // this group approved planned incident
 
 	Description string `json:"description"` // descrption
 

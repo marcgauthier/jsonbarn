@@ -158,7 +158,7 @@ func GetConfiguration(packet *MsgClientCmd) ([]byte, error) {
 
 	// what type of information user want to extract?
 
-	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"config\", \"items\" : [")
+	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"CONFIG\", \"items\" : [")
 
 	buffer.Write(j)
 
