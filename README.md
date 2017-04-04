@@ -12,6 +12,18 @@
 - Ecureuil is fully open source and develop in GO and use postgresql as the backend database.
 
 
+**Dependencies**
+- logger https://github.com/antigloss/go
+- govalidator https://github.com/asaskevich/govalidator
+- Gods https://github.com/emirpasic/gods
+- Gorilla http://www.gorillatoolkit.org/pkg/websocket
+- PQ https://github.com/lib/pq
+- Bluemonday https://github.com/microcosm-cc/bluemonday
+- gocode https://github.com/nsf/gocode
+- Calendar https://github.com/EndFirstCorp/calendar
+- UUID https://github.com/satori/go.uuid
+- Gopsutil https://github.com/shirou/gopsutil
+- GJSON https://github.com/tidwall/gjson
 
 ## Download
 	
