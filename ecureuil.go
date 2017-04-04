@@ -67,19 +67,6 @@ import (
 
 var upgrader = websocket.Upgrader{} // use default options
 
-/*GetDBBackup Handle request to download the database thru HTTPS for the purpose of making a backup!
-
-User rights must be contain in the Request object in a posted FORM.  The Upload funtion
-will extract username and password and verify that the user is allowed to download
-backup thru HTTPS.
-
-*/
-func GetDBBackup(w http.ResponseWriter, r *http.Request) {
-
-	models.Upload(w, r)
-
-}
-
 /*
 
 Handle the request to open a Websocket service connection, a Client object
@@ -225,6 +212,7 @@ func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
 
 //sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
 //sudo ./ecureuil -dropdb -host=192.168.56.101 -user=postgres -password=bitnami
+/// -trace to show trace!
 
 func main() {
 
@@ -235,6 +223,7 @@ func main() {
 	host := flag.String("host", "", "postgresql server ip or hostname")
 	boolPtr := flag.Bool("createdb", false, "a bool")
 	boolPtr2 := flag.Bool("dropdb", false, "a bool")
+	showTraceFlag := flag.Bool("trace", false, "a bool")
 
 	flag.Parse()
 
@@ -250,6 +239,49 @@ func main() {
 		return
 	}
 
+	showTrace := false
+	if *showTraceFlag {
+		showTrace = true
+	}
+
+	if *host == "" {
+		for {
+			fmt.Println("Enter Postgre host/ip: ")
+			input := ""
+			fmt.Scanln(&input)
+			if input != "" {
+				break
+			}
+			*host = input
+		}
+	}
+
+	if *user == "" {
+		for {
+			fmt.Println("Enter Postgre username: ")
+			input := ""
+			fmt.Scanln(&input)
+			if input != "" {
+				break
+			}
+			*user = input
+		}
+	}
+
+	if *password == "" {
+		for {
+			fmt.Println("Enter Postgre password: ")
+			input := ""
+			fmt.Scanln(&input)
+			if input != "" {
+				break
+			}
+			*password = input
+		}
+	}
+
+	//fmt.Println("Host=" + *host + " username=" + *user)
+
 	// create folder for storing log files if it does not exists.
 	path := "./log"
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -259,18 +291,24 @@ func main() {
 	// logger options are Trace, Info, Warn, Error, Panic and Abort
 	// logs are saved into the log/ folder
 
+	if *boolPtr2 {
+		result := models.DropDB(host, user, password)
+		fmt.Println(result)
+		return
+	}
+
 	logger.Init("./log", // specify the directory to save the logfiles
-		400,  // maximum logfiles allowed under the specified log directory
-		20,   // number of logfiles to delete when number of logfiles exceeds the configured limit
-		100,  // maximum size of a logfile in MB
-		true) // whether logs with Trace level are written down
+		400,       // maximum logfiles allowed under the specified log directory
+		20,        // number of logfiles to delete when number of logfiles exceeds the configured limit
+		100,       // maximum size of a logfile in MB
+		showTrace) // whether logs with Trace level are written down
 
 	logger.SetLogToConsole(true) // show all log on the monitor
 
 	models.InitFileCache()
 
 	/* OPEN database, initialize and create default values if required */
-	models.Open()
+	models.Open(*host, *user, *password)
 	defer models.Close()
 
 	logger.Trace("Openning Database Completed!")
@@ -282,7 +320,6 @@ func main() {
 	/* Create HTTPS mux router */
 	r := mux.NewRouter()
 	r.HandleFunc("/wss/", wsPage)                    // websocket request
-	r.HandleFunc("/backup/", GetDBBackup)            // download database (backup) request
 	r.PathPrefix("/").Handler(appHandler(myHandler)) // any other request check for static files
 	http.Handle("/", r)
 
@@ -327,6 +364,6 @@ func main() {
 
 	logger.Trace("Starting the HTTP to HTTPS redirect Listenner " + req)
 
-	http.ListenAndServe(":80", http.HandlerFunc(redirectToHTTPS))
+	http.ListenAndServe(models.Configuration.Addr+":80", http.HandlerFunc(redirectToHTTPS))
 
 }
