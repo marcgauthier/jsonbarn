@@ -53,10 +53,7 @@ type TUser struct {
 
 	Groups []string `json:"group"` // What group the user is part of
 
-	EmailAlert []string `json:"emailalert"` // What group the user is part of
-
-	EmailAddr string `json:"emailaddr"` // What is the email address
-
+	Settings []byte `json:"settings"` // save user setting for client-side
 }
 
 /*TNotification contain the structure to hold item received from postgresql

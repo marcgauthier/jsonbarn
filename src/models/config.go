@@ -53,6 +53,8 @@ This bucket should not sync with other server
 
 */
 
+const configIdValue = "a62cfcd3-a7d2-4483-aaa8-2931be5927fb" // use to read and save config in SQL
+
 type tsmtp struct {
 	IP string `json:"smtpip"` // smtp server ip to send alert email
 
@@ -243,77 +245,61 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
 	// storing backup settings in the database.
 	//************************************************
 
-	err = DB.Update(&Configuration)
-
-	if err == nil {
-		go DBLog("CONFIGURATION", packet.Username, "UPDATE", oldconfig, packet.Data)
-
+	err = saveConfig(&Configuration)
+	if err != nil {
+		logger.Error(err.Error())
+		return PrepMessageForUser("Error while saving configuration:" + err.Error()), nil
 	}
 
+	go DBLog("CONFIGURATION", packet.Username, "UPDATE", oldconfig, packet.Data)
+
 	return PrepMessageForUser("Configuration saved"), nil
+
 }
 
 /*ConfigurationINIT this function is called to create the bucket and default configuration.
  */
 func ConfigurationINIT() {
 
-	var configs []TConfig
+	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE ID = $1"
 
-	err := DB.All(&configs)
+	logger.Trace(sqlquery)
+
+	rows, err := sqldb.Query(sqlquery, configIdValue)
+
 	if err != nil {
+
 		logger.Error(err.Error())
+		panic(err.Error())
+
 	}
 
-	if len(configs) == 0 {
+	if rows.Next() {
 
-		Configuration.ID = uuid.NewV4().String() // ServerID
-		Configuration.MaxReadItemsFromDB = 1000000
-
-		Configuration.SMTP.IP = ""
-		Configuration.SMTP.User = ""
-		Configuration.SMTP.Password = ""
-		Configuration.SMTP.Port = 25
-		Configuration.SMTP.Emailfrom = ""
-		Configuration.SMTP.Ssl = 0
-		Configuration.SMTP.Timeout = 60
-		Configuration.SMTP.Auth = 0
-		Configuration.SMTP.Function = 0
-		Configuration.SMTP.Enabled = 0
-		Configuration.Port = 443
-		Configuration.Addr = ""
-		Configuration.LoginPerMin = 3
-		Configuration.KeepLogForDays = 365
-		Configuration.MaxReadItemsFromDB = 1000000
-		Configuration.NetworkID = ""
-		Configuration.POSTGRESQLHost = "192.168.56.101"
-		Configuration.POSTGRESQLPass = "bitnami"
-		Configuration.POSTGRESQLPort = 5432
-		Configuration.POSTGRESQLUser = "ecureuiladmin"
-		Configuration.EmailAlertSubject = "Email Alert Change request confirmation!"
-		Configuration.EmailAlertBody = "Hello, you have recently made a request to receive or stop receiving email alert from our system" +
-			" please click the link bellow to confirm you want to activate the changes."
-		Configuration.MaxOpenSQLConns = 0
-		Configuration.MaxIdleSQLConns = 0
-		Configuration.MaxLifetimeSQLConns = 0
-
-		err := DB.Save(&Configuration)
+		var data string
+		err = rows.Scan(&data)
 		if err != nil {
 			logger.Error(err.Error())
+			panic("bad configuraton!")
 		}
 
-	} else {
-
-		if len(configs) > 1 {
-			logger.Warn("There is more than one configuration in the database, loading the first one")
+		err = json.Unmarshal([]byte(data), &Configuration)
+		if err != nil {
+			logger.Error(err.Error())
+			panic("bad configuraton!")
 		}
-
-		Configuration = configs[0]
-
+		logger.Trace("Configuration reed from SQL!")
+		return // good to go!
 	}
 
-	Configuration.LoginPerMin = 3
+	logger.Trace("no configuration found creating a new one.")
+	setDefaultConfig()
+	err = saveConfig(&Configuration)
+	if err != nil {
+		logger.Error(err.Error())
+		panic("Unable to save configuration!")
+	}
 
-	return
 }
 
 /*ValidateConfig this function validate configuration provided by the FRONTEND
@@ -336,6 +322,85 @@ func ValidateConfig(config *TConfig) error {
 		return errors.New("SMTP Port is not valid (0..65535)")
 	}
 
+	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE ID = $1"
+
+	logger.Trace(sqlquery)
+
+	rows, err := sqldb.Query(sqlquery, configIdValue)
+
+	if err != nil {
+
+		logger.Error(err.Error())
+		panic(err.Error())
+
+	}
+
+	if rows.Next() {
+
+		var data string
+		err = rows.Scan(&data)
+		if err != nil {
+			logger.Error(err.Error())
+			panic("bad configuraton!")
+		}
+
+		err = json.Unmarshal([]byte(data), &Configuration)
+		if err != nil {
+			logger.Error(err.Error())
+			panic("bad configuraton!")
+		}
+		logger.Trace("Configuration reed from SQL!")
+		return nil // good to go!
+	}
 	return nil
+}
+
+func saveConfig(configuration *TConfig) error {
+
+	newconfig, err := json.Marshal(Configuration)
+	if err != nil {
+		return err
+	}
+
+	sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (ID, DATA, bucketname, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONSERVER) " +
+		"VALUES ($1, $2, 'CONFIG', 'SYSTEM', 'SYSTEM',  $3, $3, $4) ON CONFLICT (ID) DO UPDATE SET DATA = $2 WHERE ecureuil.JSONOBJECTS.ID = $1;"
+
+	_, err = sqldb.Exec(sqlquery, configIdValue, string(newconfig), uint64(UnixUTCSecs()), Configuration.ID)
+
+	return err
+}
+
+func setDefaultConfig() {
+
+	Configuration.ID = uuid.NewV4().String() // ServerID
+	Configuration.MaxReadItemsFromDB = 1000000
+
+	Configuration.SMTP.IP = ""
+	Configuration.SMTP.User = ""
+	Configuration.SMTP.Password = ""
+	Configuration.SMTP.Port = 25
+	Configuration.SMTP.Emailfrom = ""
+	Configuration.SMTP.Ssl = 0
+	Configuration.SMTP.Timeout = 60
+	Configuration.SMTP.Auth = 0
+	Configuration.SMTP.Function = 0
+	Configuration.SMTP.Enabled = 0
+	Configuration.Port = 443
+	Configuration.Addr = ""
+	Configuration.LoginPerMin = 3
+	Configuration.KeepLogForDays = 365
+	Configuration.MaxReadItemsFromDB = 1000000
+	Configuration.NetworkID = ""
+	Configuration.POSTGRESQLHost = "192.168.56.101"
+	Configuration.POSTGRESQLPass = "bitnami"
+	Configuration.POSTGRESQLPort = 5432
+	Configuration.POSTGRESQLUser = "ecureuiladmin"
+	Configuration.EmailAlertSubject = "Email Alert Change request confirmation!"
+	Configuration.EmailAlertBody = "Hello, you have recently made a request to receive or stop receiving email alert from our system" +
+		" please click the link bellow to confirm you want to activate the changes."
+	Configuration.MaxOpenSQLConns = 0
+	Configuration.MaxIdleSQLConns = 0
+	Configuration.MaxLifetimeSQLConns = 0
+	Configuration.LoginPerMin = 3
 
 }

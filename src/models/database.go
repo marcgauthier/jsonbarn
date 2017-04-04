@@ -77,14 +77,9 @@ import (
 
 	"github.com/antigloss/go/logger"
 	"github.com/asaskevich/govalidator"
-	"github.com/asdine/storm"
 	"github.com/lib/pq"
 	uuid "github.com/satori/go.uuid"
 )
-
-/*DB this is a pointer to the database and is going to be nil until its set by the Open function
- */
-var DB *storm.DB
 
 var sqldb *sql.DB
 
@@ -92,32 +87,11 @@ var connstring = ""
 
 /*Open Function called at the start of the program to open the database.
  */
-func Open() {
+func Open(host, username, password string) {
 
 	err := errors.New("")
 
-	logger.Trace("Opening STORM database ecureuil.db")
-
-	DB, err = storm.Open("ecureuil.db")
-
-	if err != nil {
-
-		logger.Panic("Error while opening the STORM database: " + err.Error())
-		panic("Error while opening the STORM database: " + err.Error())
-
-	}
-
-	logger.Trace("STORM Database Openened.")
-
-	/* Initialize database, create USERS and CONFIGURATION Buckets with  default values */
-	ConfigurationINIT()
-
-	Configuration.MaxReadItemsFromDB = 1000000
-
-	/* initialize users database make sure at least one admin user exists */
-	UsersINIT()
-
-	connstring = "dbname=postgres user=ecureuiladmin host=" + Configuration.POSTGRESQLHost + " password=" + Configuration.POSTGRESQLPass + " sslmode=disable"
+	connstring = "dbname=postgres user=" + username + " host=" + host + " password=" + password + " sslmode=disable"
 
 	logger.Trace("Opening connection to POSTGRESQL database")
 
@@ -131,6 +105,12 @@ func Open() {
 		logger.Error(err.Error())
 		panic(err.Error())
 	}
+
+	/* Initialize database, create USERS and CONFIGURATION Buckets with  default values */
+	ConfigurationINIT()
+
+	/* initialize users database make sure at least one admin user exists */
+	UsersINIT()
 
 	reportProblem := func(ev pq.ListenerEventType, err error) {
 		if err != nil {
@@ -168,10 +148,6 @@ func Open() {
  */
 func Close() {
 
-	logger.Trace("Closing STORM database.")
-
-	DB.Close()
-
 	logger.Trace("Closing SQL connection.")
 
 	sqldb.Close()
@@ -182,8 +158,6 @@ func Close() {
 DBLog a change in the database
 */
 func DBLog(bucketname, username, action string, PreviousData, NewData []byte) {
-
-	return
 
 	rows, err := sqldb.Query("INSERT into ecureuil.LOGS (JSONID,USERNAME,ACTION,PREVIOUSDATA,NEWDATA) VALUES ($1,$2,$3,$4,$5)", bucketname, username, action, PreviousData, NewData)
 	defer rows.Close()
@@ -510,7 +484,7 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 			return PrepMessageForUser("No query could be build"), nil
 		}
 
-		sqlquery = "select DATA, jsonb_build_object('$id', ID," +
+		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
 			"'$bucketname', BUCKETNAME," +
 			"'$createdby', CREATEDBY," +
 			"'$updatedby', UPDATEDBY," +
@@ -742,7 +716,7 @@ func DBUpdate(packet *MsgClientCmd, defered bool) ([]byte, error) {
 		// overwritten when data is reed from the database.
 
 		sqlquery := "UPDATE ecureuil.JSONOBJECTS set UpdatedBy = $1, UpdatedTime = $2, DATA = $3 WHERE ID = $4"
-		_, err := sqldb.Exec(sqlquery, packet.Username, uint64(UnixUTCSecs()), string(packet.Data), packet.Key)
+		_, err := sqldb.Exec(sqlquery, packet.Username, uint64(UnixUTCSecs()), SanitizeJSONStrHTML(string(packet.Data)), packet.Key)
 
 		if err != nil {
 			logger.Trace(err.Error())
@@ -853,7 +827,8 @@ func DBInsert(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			Configuration.NetworkID = "00000000-0000-0000-0000-000000000000"
 		}
 
-		_, err := sqldb.Exec(sqlquery, ID, packet.Bucketname, packet.Username, packet.Username, uint64(UnixUTCSecs()), uint64(UnixUTCSecs()), Configuration.NetworkID, Configuration.ID, string(packet.Data))
+		_, err := sqldb.Exec(sqlquery, ID, packet.Bucketname, packet.Username, packet.Username, uint64(UnixUTCSecs()), uint64(UnixUTCSecs()), Configuration.NetworkID, Configuration.ID,
+			SanitizeJSONStrHTML(string(packet.Data)))
 
 		if err == nil {
 
@@ -940,6 +915,11 @@ func CreateDB(host, user, pass *string) string {
 
 	DatabaseUser := "ecureuiladmin"
 	AdminPassword := RandomPassword(30)
+
+	fmt.Println("*********************************************************************")
+	fmt.Println("username for postgre is: " + DatabaseUser)
+	fmt.Println("password for postgre is: " + AdminPassword)
+	fmt.Println("*********************************************************************")
 
 	s := "CREATE SCHEMA ecureuil"
 	fmt.Println(s)
@@ -1099,6 +1079,11 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_username ON ecureuil.JSONOBJECTS (BUCKETNAME, (DATA->>'name'));")
+	if err != nil {
+		return err.Error()
+	}
+
 	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.logtrigger()" +
 		"RETURNS trigger AS $$" +
 		"DECLARE " +
@@ -1218,27 +1203,8 @@ func CreateDB(host, user, pass *string) string {
 
 	sqldb.Close()
 
-	/* save the password */
-
-	DB, err = storm.Open("ecureuil.db")
-
-	if err != nil {
-
-		logger.Panic("Error while opening the STORM database: " + err.Error())
-		panic("Error while opening the STORM database: " + err.Error())
-
-	}
-
-	logger.Trace("STORM Database Openened.")
-
 	/* Initialize database, create USERS and CONFIGURATION Buckets with  default values */
 	ConfigurationINIT()
-
-	Configuration.POSTGRESQLHost = *host
-	Configuration.POSTGRESQLPass = AdminPassword
-	Configuration.POSTGRESQLUser = "ecureuiladmin"
-
-	err = DB.Update(&Configuration)
 
 	return "Database has been successfully created"
 

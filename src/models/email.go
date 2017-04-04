@@ -45,8 +45,6 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
-	"log"
-	"net/smtp"
 	"strconv"
 
 	"github.com/antigloss/go/logger"
@@ -91,7 +89,7 @@ func ReceiveEmailAlertChangeReq(packet *MsgClientCmd) ([]byte, error) {
 	Info.ID = uuid.NewV4().String() // generate an ID that need to be confirm by user using get url from browser
 	Info.DateRequest = UnixUTCSecs()
 
-	DB.Save(&Info)
+	//DB.Save(&Info)
 
 	SendEmail([]string{Info.Email},
 		Configuration.SMTP.Emailfrom,
@@ -105,31 +103,31 @@ func ReceiveEmailAlertChangeReq(packet *MsgClientCmd) ([]byte, error) {
 /*ReceiveConfirmationEmailAlert This function is called when user click on the http link to confirm a req change email alert
  */
 func ReceiveConfirmationEmailAlert(ID string) error {
+	/*
+		logger.Trace("Confirming request id " + ID)
 
-	logger.Trace("Confirming request id " + ID)
-
-	Info := EmailAlertRequest{}
-	err := DB.One("ID", ID, &Info)
-	if err != nil {
-		return err
-	}
-
-	// we are good save the list of buckets (alert) for the specify email address
-	e := EmailAlert{}
-	e.Buckets = Info.Buckets
-	e.Email = Info.Email
-	err = DB.Save(&e)
-	if err != nil {
-
-		err = DB.Update(&e)
+		Info := EmailAlertRequest{}
+		err := DB.One("ID", ID, &Info)
 		if err != nil {
 			return err
 		}
-	}
 
-	// success delete the Change request
-	DB.DeleteStruct(&Info)
+		// we are good save the list of buckets (alert) for the specify email address
+		e := EmailAlert{}
+		e.Buckets = Info.Buckets
+		e.Email = Info.Email
+		err = DB.Save(&e)
+		if err != nil {
 
+			err = DB.Update(&e)
+			if err != nil {
+				return err
+			}
+		}
+
+		// success delete the Change request
+		DB.DeleteStruct(&Info)
+	*/
 	return nil
 }
 
@@ -142,47 +140,48 @@ models.SendEmail([]string{"marc.gauthier3@gmail.com"}, "marc.gauthier3@gmail.com
 */
 func SendEmail(to []string, from, subject, body string) {
 
-	logger.Trace("sending email")
+	/*
+		logger.Trace("sending email")
 
-	/* for debuging! */
-	Configuration.SMTP.Enabled = 1
-	Configuration.SMTP.User = "marc.gauthier3@gmail.com"
-	Configuration.SMTP.Password = "azy4azy4"
-	Configuration.SMTP.IP = "smtp.gmail.com"
-	Configuration.SMTP.Port = 587 //465 //587
-	Configuration.SMTP.Emailfrom = "marc.gauthier3@gmail.com"
+		// for debuging!
+		Configuration.SMTP.Enabled = 1
+		Configuration.SMTP.User = "marc.gauthier3@gmail.com"
+		Configuration.SMTP.Password = "azy4azy4"
+		Configuration.SMTP.IP = "smtp.gmail.com"
+		Configuration.SMTP.Port = 587 //465 //587
+		Configuration.SMTP.Emailfrom = "marc.gauthier3@gmail.com"
 
-	// check if email alert are enabled.
-	if Configuration.SMTP.Enabled == 0 {
-		return
-	}
-
-	// Set up authentication information.
-	auth := smtp.PlainAuth("", Configuration.SMTP.User, Configuration.SMTP.Password, Configuration.SMTP.IP)
-
-	tolist := ""
-	for i := 0; i < len(to); i++ {
-		if i > 0 {
-			tolist += ";" + to[i]
-		} else {
-			tolist += to[i]
+		// check if email alert are enabled.
+		if Configuration.SMTP.Enabled == 0 {
+			return
 		}
-	}
 
-	msg := []byte("To: " + tolist + "\r\n" +
-		"From: " + from + "\r\n" +
-		"Subject: " + subject + "\r\n" +
-		body)
+		// Set up authentication information.
+		auth := smtp.PlainAuth("", Configuration.SMTP.User, Configuration.SMTP.Password, Configuration.SMTP.IP)
 
-	logger.Trace("connecting to smtp server")
-	err := smtp.SendMail(Configuration.SMTP.IP+":"+strconv.Itoa(Configuration.SMTP.Port), auth, from, to, msg)
+		tolist := ""
+		for i := 0; i < len(to); i++ {
+			if i > 0 {
+				tolist += ";" + to[i]
+			} else {
+				tolist += to[i]
+			}
+		}
 
-	if err != nil {
-		log.Fatal("fataerror :" + err.Error())
-		return
-	}
-	logger.Trace("No error on smtp func")
+		msg := []byte("To: " + tolist + "\r\n" +
+			"From: " + from + "\r\n" +
+			"Subject: " + subject + "\r\n" +
+			body)
 
+		logger.Trace("connecting to smtp server")
+		err := smtp.SendMail(Configuration.SMTP.IP+":"+strconv.Itoa(Configuration.SMTP.Port), auth, from, to, msg)
+
+		if err != nil {
+			log.Fatal("fataerror :" + err.Error())
+			return
+		}
+		logger.Trace("No error on smtp func")
+	*/
 }
 
 /* return list of email address of user that want to receive email alert from
@@ -192,20 +191,21 @@ func generateToList(bucketname string) []string {
 
 	var list []string
 
-	var users []EmailAlert
+	/*
+		var users []EmailAlert
 
-	err := DB.All(&users)
+		err := DB.All(&users)
 
-	if err != nil {
-		return list
-	}
-
-	for i := range users {
-		if IsStrInArray(bucketname, users[i].Buckets) {
-			list = append(list, users[i].Email)
+		if err != nil {
+			return list
 		}
-	}
 
+		for i := range users {
+			if IsStrInArray(bucketname, users[i].Buckets) {
+				list = append(list, users[i].Email)
+			}
+		}
+	*/
 	return list
 }
 

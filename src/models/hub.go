@@ -350,7 +350,7 @@ func (c *Client) read() {
 				c.password = ""
 				c.username = ""
 				err = nil
-				user = PrepMessageForUser("Successfully logout!")
+				user = []byte("{ \"action\":\"logout\"}")
 
 			} else if packet.Action == "QUERY" || packet.Action == "READALL" || packet.Action == "READONE" || packet.Action == "READFIND" || packet.Action == "READRANGE" {
 
@@ -393,6 +393,20 @@ func (c *Client) read() {
 				packet.Username = c.username
 				packet.Password = c.password
 				user, err = DBUpdate(&packet, false)
+
+			} else if packet.Action == "SETUSERSETTING" {
+
+				/*
+				   Request to Update a single property of a specific item.
+				   itemID is in key
+				   json object in data
+
+				*/
+
+				// overwrite any provided credential with the proper credential
+				packet.Username = c.username
+				packet.Password = c.password
+				user, err = DBUserSettings(&packet)
 
 			} else if packet.Action == "INSERT" {
 

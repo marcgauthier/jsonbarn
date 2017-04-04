@@ -10,7 +10,7 @@ ______________________________________________________________________________
 
 MIT License
 
-Copyright (c) 2014-2016 Marc Gauthier
+Copyright (c) 2014-2017 Marc Gauthier
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -57,7 +57,7 @@ ______________________________________________________________________________
 
 Revision:
 
-
+	30 Mar 2017 - Change Storm DB to PostgreSQL
     01 Nov 2016 - Clean code, audit.
 
 
@@ -71,8 +71,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"github.com/antigloss/go/logger"
+	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -91,6 +93,10 @@ var DefaultadminNAME = []byte("owlsoadmin") // default username for admin user
 /*DefaultadminPASSWORD default password for the default DefaultadminNAME
  */
 var DefaultadminPASSWORD = []byte("p@ssw0rd") // default password for admin user
+
+/*Users list of user from database
+ */
+var Users = []TUser{}
 
 /*DBLogin check if username and password are OK
  */
@@ -114,47 +120,83 @@ func DBLogin(packet *MsgClientCmd) ([]byte, error) {
 
 	}
 
-	// sucessfull login sent the good news to the user.
-	return []byte("{ \"action\":\"login\", \"result\":\"success\", \"username\":\"" + packet.Username + "\"}"), nil
+	settings := ""
+
+	user := userFind(string(packet.Username))
+	if user != nil {
+
+		settings = string(user.Settings)
+
+		logger.Info("{ \"action\":\"login\", \"result\":\"success\", \"settings\":\"" + settings + "\", \"username\":\"" + packet.Username + "\"}")
+
+		// sucessfull login sent the good news to the user.
+		return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":\"" + settings + "\", \"username\":\"" + packet.Username + "\"}"), nil
+	}
+
+	// sucessfull login sent the good news to the user without settings.
+	return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":\"" + "" + "\", \"username\":\"" + packet.Username + "\"}"), nil
 
 }
 
-/*UserDelete this function is use to delete a user from the database.
+/*DBUserSettings check if username and password are OK
+ */
+func DBUserSettings(packet *MsgClientCmd) ([]byte, error) {
 
-    Username to Delete is in packet.Key.
-	User need either USERS-delete or admin righs to be able to delete users.
-	if User to be deleted has admin rights than user requesting action must be an admin as well.
-*/
-func UserDelete(packet *MsgClientCmd) error {
+	logger.Trace("Request change user settings for " + packet.Username)
 
-	// check if user has delete users rights.
-	access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "USERS-delete")
-
-	// check if user has admin rights.
-	admin, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "admin")
-
-	if !admin && !access {
-		logger.Warn(packet.Username + " try to delete " + string(packet.Key) + " access denied.")
-		return errors.New("You do not have rights to delete USERS")
+	if packet.Username == "" {
+		err := errors.New("No username logged in")
+		return nil, err
 	}
 
-	// check if the user to be deleted is an admin, only admin can delete admin!
+	result, err := VerifyUserPassword([]byte(packet.Username), []byte(packet.Password))
 
-	if err = VerifyUserHasRight([]byte(packet.Key), "admin"); err == nil {
+	if !result || err != nil {
 
-		// The user we are trying to delete has admin rights
-		if !admin {
-			logger.Warn("User modification blocked, " + packet.Username + " want to modified  " + string(packet.Key) + " (admin) access denied.")
-			return errors.New("You required admin rights to modify this user")
+		if err == nil {
+			err = errors.New("Invalid or incorrect password ")
+		}
+
+		// Log error
+		logger.Warn(err.Error())
+
+		// Send Response to user!
+		//return []byte("{ \"action\":\"login\", \"result\":\"failed\", \"username\":\"" + packet.Username + "\"" + ", \"error\":\"" + err.Error() + "\"}"), err
+
+	}
+
+	user := userFind(string(packet.Username))
+	if user != nil {
+
+		oldsettings := map[string]interface{}{}
+		json.Unmarshal(user.Settings, &oldsettings)
+
+		newsettings := map[string]interface{}{}
+		json.Unmarshal([]byte(packet.Data), &newsettings)
+
+		for k, v := range newsettings {
+			oldsettings[k] = v
+		}
+
+		user.Settings, err = json.Marshal(oldsettings)
+
+		saveUser(user)
+
+		// sucessfull SAVE.
+		return nil, nil
+	}
+
+	return nil, nil // user was not found
+
+}
+
+func userFind(name string) *TUser {
+	for i := 0; i < len(Users); i++ {
+		if Users[i].ID == name {
+			return &Users[i]
 		}
 	}
-
-	// Proceed with the deletion of the user.
-
-	user := TUser{}
-	user.ID = packet.Key
-	return DB.DeleteStruct(user)
-
+	return nil
 }
 
 /*GetUsers this function is use to update the user information in the database.
@@ -168,8 +210,6 @@ the user must have admin account.
 */
 func GetUsers(packet *MsgClientCmd) ([]byte, error) {
 
-	items := []TUser{}
-
 	// check if user requesting the action has admin right.
 	_, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "admin")
 
@@ -178,17 +218,23 @@ func GetUsers(packet *MsgClientCmd) ([]byte, error) {
 		return PrepMessageForUser("Unable to verify rights of current user"), errors.New("Unable to verify rights of current user")
 	}
 
-	err = DB.All(&items)
-
 	buffer := new(bytes.Buffer)
 
 	// what type of information user want to extract?
 
 	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"users\", \"items\" : [")
 
-	for i := 0; i < len(items); i++ {
-		items[i].PasswordHash = []byte("")
-		u, err := json.Marshal(items[i])
+	for i := 0; i < len(Users); i++ {
+
+		// do not publish password
+		t := Users[i].PasswordHash
+		Users[i].PasswordHash = []byte("")
+
+		u, err := json.Marshal(Users[i])
+
+		// restore password
+		Users[i].PasswordHash = t
+
 		if err == nil {
 			if i > 0 {
 				buffer.WriteString(",")
@@ -303,6 +349,7 @@ func UserUpdate(packet *MsgClientCmd) error {
 	// save user in database.
 	//************************************************
 	err = UserSave(&item, item.NewPassword != "")
+
 	if err == nil {
 		logger.Info(packet.Username + " has modify " + string(item.ID))
 
@@ -337,26 +384,19 @@ func UserSave(user *TUser, PasswordHasChanged bool) error {
 		}
 
 		// because we just changed the password we can overwrite all fields
-		return DB.Save(user)
+		return saveUser(user)
 
 	}
 
-	item := TUser{}
+	item := userFind(string(user.ID))
 
-	// To Keep the current password hash we need to load the user information.
-	err := DB.One("ID", user.ID, &item)
-
-	if err != nil {
-		if err.Error() != "not found" {
-			return err
-		}
+	if item != nil {
+		// Copy the user password into the new user information
+		copy(user.PasswordHash, item.PasswordHash)
+		user.NewPassword = "" // do not save the password in clear in the database.
 	}
 
-	// Copy the user password into the new user information
-	copy(user.PasswordHash, item.PasswordHash)
-	user.NewPassword = "" // do not save the password in clear in the database.
-
-	return DB.Save(user)
+	return saveUser(user)
 
 }
 
@@ -368,13 +408,11 @@ func VerifyUserHasRight(username []byte, rightname string) error {
 		username = []byte("guess")
 	}
 
-	user := TUser{}
+	user := userFind(string(username))
 
-	err := DB.One("ID", string(username), &user)
-
-	if err != nil {
-		logger.Trace("VerifyUserHasRight " + string(username) + " " + err.Error())
-		return err
+	if user == nil {
+		logger.Trace("VerifyUserHasRight " + string(username) + " user not found")
+		return errors.New("User not found")
 	}
 
 	if ok := IsStrInArray("admin", user.Rights); !ok {
@@ -424,18 +462,16 @@ func VerifyUserPassword(username, password []byte) (bool, error) {
 		return false, errors.New("No password provided")
 	}
 
-	user := TUser{}
-
-	err := DB.One("ID", string(username), &user)
-	if err != nil {
-		logger.Error(err.Error())
-		return false, err
+	user := userFind(string(username))
+	if user == nil {
+		logger.Error("user not found")
+		return false, nil
 	}
 
 	errcode := bcrypt.CompareHashAndPassword(user.PasswordHash, password)
 	if errcode != nil {
 		// password do not matched!
-		return false, err
+		return false, errcode
 	}
 
 	return true, nil
@@ -446,23 +482,21 @@ func VerifyUserPassword(username, password []byte) (bool, error) {
  */
 func UsersINIT() {
 
-	logger.Info("Initialization of USERS Bucket")
+	logger.Info("Loading users.")
+
+	err := loadUsers()
+	if err != nil {
+		logger.Panic(err.Error())
+		panic(err.Error())
+	}
 
 	adminfound := false // check if at least one admin user exists.
 	exists := true      // if true then bucket users need to be created.
 
-	var users []TUser
+	for i := range Users {
 
-	err := DB.All(&users)
-
-	if err != nil {
-		return
-	}
-
-	for i := range users {
-
-		if IsStrInArray("admin", users[i].Rights) {
-			logger.Trace("Found admin user: " + users[i].ID)
+		if IsStrInArray("admin", Users[i].Rights) {
+			logger.Trace("Found admin user: " + Users[i].ID)
 			adminfound = true
 		}
 	}
@@ -476,18 +510,148 @@ func UsersINIT() {
 		user := TUser{}
 		user.ID = string(DefaultadminNAME)
 		user.Rights = append(user.Rights, "admin")
-
 		user.NewPassword = string(DefaultadminPASSWORD) // hash will be calculate in UserSave
+
+		Users = append(Users, user) // add to list
 
 		err = UserSave(&user, true)
 		if err != nil {
 			logger.Panic("Error creating default admin account: " + err.Error())
 			panic("Error creating default admin account: " + err.Error())
 		}
+
 		logger.Info("A new default admin user " + user.ID + " was created.")
 
 	}
 
 	logger.Info("Initialization of USERS Bucket completed")
+
+}
+
+func loadUsers() error {
+
+	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE BUCKETNAME = 'USERS';"
+
+	logger.Trace(sqlquery)
+
+	rows, err := sqldb.Query(sqlquery)
+
+	defer rows.Close()
+
+	if err != nil {
+		return err
+	}
+
+	for rows.Next() {
+
+		var data string
+		err = rows.Scan(&data)
+
+		if err != nil {
+			logger.Error("Bad User: " + data + " " + err.Error())
+			continue
+		}
+
+		user := TUser{}
+
+		err = json.Unmarshal([]byte(data), &user)
+		if err != nil {
+			logger.Error("Bad User: " + data + " " + err.Error())
+			continue
+		}
+
+		Users = append(Users, user)
+
+	}
+
+	logger.Trace("Number of users loaded: " + strconv.Itoa(len(Users)))
+	return nil // good to go!
+
+}
+
+func saveUser(u *TUser) error {
+
+	newuser, err := json.Marshal(u)
+	if err != nil {
+		return err
+	}
+
+	var count int64
+
+	sqlquery := "SELECT COUNT(*) FROM ecureuil.JSONOBJECTS WHERE DATA->>'name' = $1 AND BUCKETNAME = 'USERS';"
+	rows, err := sqldb.Query(sqlquery, u.ID)
+	defer rows.Close()
+
+	if rows.Next() {
+
+		err = rows.Scan(&count)
+		if err != nil {
+			logger.Error(err.Error())
+			return err
+		}
+
+	}
+
+	if count == 0 {
+		// insert
+		logger.Trace("insert")
+
+		id := uuid.NewV4().String()
+
+		sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (ID, DATA, bucketname, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONSERVER) " +
+			"VALUES ($1, $2, 'USERS', 'SYSTEM', 'SYSTEM',  $3, $3, $4)"
+
+		_, err = sqldb.Exec(sqlquery, id, string(newuser), uint64(UnixUTCSecs()), Configuration.ID) // u.ID contain name!
+
+	} else {
+		// update
+		logger.Trace("update")
+
+		sqlquery := "UPDATE ecureuil.JSONOBJECTS set data = $2 WHERE ecureuil.JSONOBJECTS.BUCKETNAME = '" + string(UserBUCKET) + "' AND ecureuil.JSONOBJECTS.DATA->>'name' = $1;"
+
+		_, err = sqldb.Exec(sqlquery, u.ID, string(newuser)) // u.ID contain name!
+
+	}
+
+	return err
+}
+
+/*UserDelete this function is use to delete a user from the database.
+
+    Username to Delete is in packet.Key.
+	User need either USERS-delete or admin righs to be able to delete users.
+	if User to be deleted has admin rights than user requesting action must be an admin as well.
+*/
+func UserDelete(packet *MsgClientCmd) error {
+
+	// check if user has delete users rights.
+	access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "USERS-delete")
+
+	// check if user has admin rights.
+	admin, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "admin")
+
+	if !admin && !access {
+		logger.Warn(packet.Username + " try to delete " + string(packet.Key) + " access denied.")
+		return errors.New("You do not have rights to delete USERS")
+	}
+
+	// check if the user to be deleted is an admin, only admin can delete admin!
+
+	if err = VerifyUserHasRight([]byte(packet.Key), "admin"); err == nil {
+
+		// The user we are trying to delete has admin rights
+		if !admin {
+			logger.Warn("User modification blocked, " + packet.Username + " want to modified  " + string(packet.Key) + " (admin) access denied.")
+			return errors.New("You required admin rights to modify this user")
+		}
+	}
+
+	// Proceed with the deletion of the user.
+
+	sqlquery := "DELETE FROM ecureuil.JSONOBJECTS WHERE ecureuil.JSONOBJECTS.BUCKETNAME = '" + string(UserBUCKET) + "' AND ecureuil.JSONOBJECTS.DATA->>'name' = $1;"
+
+	_, err = sqldb.Exec(sqlquery, string(packet.Key)) // u.ID contain name!
+
+	return err
 
 }

@@ -28,15 +28,15 @@ func GetStats(packet *MsgClientCmd) ([]byte, error) {
 	logger.Trace("Access granted to statistics.")
 
 	// Grab the current stats.
-	DBstats := DB.Bolt.Stats()
-	data, _ := json.Marshal(DBstats)
+	//DBstats := DB.Bolt.Stats()
+	//data, _ := json.Marshal(DBstats)
 
 	buf := new(bytes.Buffer)
 
 	/* also grab stats about the server like cpu%, memory usage, disk usage */
 	server := serverStats()
 
-	buf.WriteString("{ \"action\":\"stats\", \"server\":" + server + ", \"database\":" + string(data) + " }")
+	buf.WriteString("{ \"action\":\"stats\", \"server\":" + server + ", \"database\":" + "" + " }")
 
 	logger.Trace(" Stats: " + buf.String())
 

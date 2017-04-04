@@ -122,6 +122,15 @@ func SanitizeStrHTML(msg string) string {
 
 }
 
+/*SanitizeJSONStrHTML sanitize HTML within an JSON but
+do not convert single and double quote
+*/
+func SanitizeJSONStrHTML(json string) string {
+
+	return strings.Replace(strings.Replace(SanitizeStrHTML(json), `&#34;`, `"`, -1), `&#39;`, `'`, -1)
+
+}
+
 func removeIndex(s []uint64, index int) []uint64 {
 	return append(s[:index], s[index+1:]...)
 }
