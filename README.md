@@ -1,15 +1,15 @@
 # Ecureuil v1.0 
 ![](http://owlso.net/img/ecureuil.png)
 
-[![GoDoc](https://godoc.org/github.com/asdine/storm?status.svg)](https://godoc.org/github.com/asdine/storm)
+[![GoDoc](https://godoc.org/github.com/marcgauthier/ecureuil?status.svg)](https://godoc.org/github.com/marcgauthier/ecureuil)
 
-**ECUREUIL** *(squirrel in french)* is a **light** realtime JavaScript framework.  It was build to allow developper to quickly build Single page App with real-time support without having to write a single line of code for a backend.  Ecureuil is similar to [Horizon.io](http://horizon.io) except that instead of being built over NodeJS and RethinkDB it is build using GO (golang) and use postgre.  Ecureuil is a light framework it does not have many features just what you need!
+**ECUREUIL** *(squirrel in french)* is a **light** self-hosted backend as a service for building realtime JavaScript (web) apps, Open Source and free.  It was build to allow developper to quickly build Single page App with real-time support without having to write a single line of backend code.  Ecureuil is developped in golang and relied on postgre Sql for it's database backend.  Ecureuil is a light framework it does not have many features just what you need!
 
-- Serve static content over https, http is redirected to https
+- Serve static content over https, http is automatically redirected to https
 - Provide access to database via client library api over secure websockets.
 - Real-time support, clients can select to register to receive changes commit to the database in near real-time.
 - Built for simplicity it allow you to start developing rapidly without having to learn a complicated API.  
-- Ecureuil is fully open source and develop in GO and use postgresql as the backend database.
+- Ecureuil is fully open source and develop in GOLANG.
 
 
 **Dependencies**
