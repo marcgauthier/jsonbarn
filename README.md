@@ -29,7 +29,7 @@
 	
 	
 * Source code
-	- https://github.com/owlso/ecureuil 
+	- https://github.com/marcgauthier/ecureuil 
 
 
 
