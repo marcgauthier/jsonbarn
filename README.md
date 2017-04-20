@@ -24,6 +24,7 @@
 - UUID https://github.com/satori/go.uuid
 - Gopsutil https://github.com/shirou/gopsutil
 - GJSON https://github.com/tidwall/gjson
+- GABS https://github.com/Jeffail/gabss
 
 ## Download
 	
