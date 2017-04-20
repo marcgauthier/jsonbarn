@@ -45,6 +45,8 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"log"
+	"net/smtp"
 	"strconv"
 
 	"github.com/antigloss/go/logger"
@@ -140,48 +142,47 @@ models.SendEmail([]string{"marc.gauthier3@gmail.com"}, "marc.gauthier3@gmail.com
 */
 func SendEmail(to []string, from, subject, body string) {
 
-	/*
-		logger.Trace("sending email")
+	logger.Trace("sending email")
 
-		// for debuging!
-		Configuration.SMTP.Enabled = 1
-		Configuration.SMTP.User = "marc.gauthier3@gmail.com"
-		Configuration.SMTP.Password = "azy4azy4"
-		Configuration.SMTP.IP = "smtp.gmail.com"
-		Configuration.SMTP.Port = 587 //465 //587
-		Configuration.SMTP.Emailfrom = "marc.gauthier3@gmail.com"
+	// for debuging!
+	Configuration.SMTP.Enabled = 1
+	Configuration.SMTP.User = "marc.gauthier3@gmail.com"
+	Configuration.SMTP.Password = "azy4azy4"
+	Configuration.SMTP.IP = "smtp.gmail.com"
+	Configuration.SMTP.Port = 587 //465 //587
+	Configuration.SMTP.Emailfrom = "marc.gauthier3@gmail.com"
 
-		// check if email alert are enabled.
-		if Configuration.SMTP.Enabled == 0 {
-			return
+	// check if email alert are enabled.
+	if Configuration.SMTP.Enabled == 0 {
+		return
+	}
+
+	// Set up authentication information.
+	auth := smtp.PlainAuth("", Configuration.SMTP.User, Configuration.SMTP.Password, Configuration.SMTP.IP)
+
+	tolist := ""
+	for i := 0; i < len(to); i++ {
+		if i > 0 {
+			tolist += ";" + to[i]
+		} else {
+			tolist += to[i]
 		}
+	}
 
-		// Set up authentication information.
-		auth := smtp.PlainAuth("", Configuration.SMTP.User, Configuration.SMTP.Password, Configuration.SMTP.IP)
+	msg := []byte("To: " + tolist + "\r\n" +
+		"From: " + from + "\r\n" +
+		"Subject: " + subject + "\r\n" +
+		body)
 
-		tolist := ""
-		for i := 0; i < len(to); i++ {
-			if i > 0 {
-				tolist += ";" + to[i]
-			} else {
-				tolist += to[i]
-			}
-		}
+	logger.Trace("connecting to smtp server")
+	err := smtp.SendMail(Configuration.SMTP.IP+":"+strconv.Itoa(Configuration.SMTP.Port), auth, from, to, msg)
 
-		msg := []byte("To: " + tolist + "\r\n" +
-			"From: " + from + "\r\n" +
-			"Subject: " + subject + "\r\n" +
-			body)
+	if err != nil {
+		log.Fatal("fataerror :" + err.Error())
+		return
+	}
+	logger.Trace("No error on smtp func")
 
-		logger.Trace("connecting to smtp server")
-		err := smtp.SendMail(Configuration.SMTP.IP+":"+strconv.Itoa(Configuration.SMTP.Port), auth, from, to, msg)
-
-		if err != nil {
-			log.Fatal("fataerror :" + err.Error())
-			return
-		}
-		logger.Trace("No error on smtp func")
-	*/
 }
 
 /* return list of email address of user that want to receive email alert from

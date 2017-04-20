@@ -370,6 +370,24 @@ func (c *Client) read() {
 
 				user, err = DBRead(&packet)
 
+			} else if packet.Action == "LOGS" {
+
+				/*
+				   Request range of information from a bucket should contain:
+				   bucketname, startdate, enddate, username and password
+
+				   Username and password is optional depending on the type of information requested!
+
+				   if startdate and enddate is null default range will be selected for some item such as open Bulletin the default range is
+				   all items in the Bucket!
+				*/
+
+				// overwrite any provided credential with the proper credential
+				packet.Username = c.username
+				packet.Password = c.password
+
+				user, err = DBGetLogs(&packet)
+
 			} else if packet.Action == "STATS" {
 
 				// overwrite any provided credential with the proper credential

@@ -121,20 +121,32 @@ func DBLogin(packet *MsgClientCmd) ([]byte, error) {
 	}
 
 	settings := ""
+	rights := ""
 
 	user := userFind(string(packet.Username))
 	if user != nil {
 
 		settings = string(user.Settings)
+		if settings == "" {
+			settings = "{}"
+		}
 
-		logger.Info("{ \"action\":\"login\", \"result\":\"success\", \"settings\":\"" + settings + "\", \"username\":\"" + packet.Username + "\"}")
+		r, err := json.Marshal(user.Rights)
+
+		if err != nil {
+			rights = "[]"
+		} else {
+			rights = string(r)
+		}
+
+		logger.Info("{ \"action\":\"login\", \"result\":\"success\", \"settings\":" + settings + ", \"username\":\"" + packet.Username + "\"}")
 
 		// sucessfull login sent the good news to the user.
-		return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":\"" + settings + "\", \"username\":\"" + packet.Username + "\"}"), nil
+		return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":" + settings + ", \"rights\":" + rights + ", \"username\":\"" + packet.Username + "\"}"), nil
 	}
 
 	// sucessfull login sent the good news to the user without settings.
-	return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":\"" + "" + "\", \"username\":\"" + packet.Username + "\"}"), nil
+	return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":{}, \"username\":\"" + packet.Username + "\"}"), nil
 
 }
 

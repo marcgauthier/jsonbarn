@@ -75,6 +75,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Jeffail/gabs"
 	"github.com/antigloss/go/logger"
 	"github.com/asaskevich/govalidator"
 	"github.com/lib/pq"
@@ -406,7 +407,7 @@ func buildQuery(bucketname string, querystring []byte) string {
 
 	err := json.Unmarshal(querystring, &queryItems)
 	if err != nil {
-		logger.Error("Invalid query items " + string(querystring))
+		logger.Error("Invalid query items " + string(querystring) + " ERROR = " + err.Error())
 		return ""
 	}
 
@@ -602,6 +603,97 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 
 }
 
+/*DBGetLogs Key = starttime MaxKey = endtime in unix seconds EPOCH
+ */
+func DBGetLogs(packet *MsgClientCmd) ([]byte, error) {
+
+	logger.Trace(packet.Username + " request read " + packet.Action + " key " + string(packet.Key) + " from " + packet.Bucketname)
+
+	// Check if the user has admin rights
+
+	access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "admin")
+	if err != nil || access == false {
+		logger.Warn("Access denied: User " + packet.Username + " to LOGS error: " + err.Error())
+		return PrepMessageForUser("Internal error or you do not have access to LOGS"), err
+	}
+
+	// if here the user has access granted
+	logger.Trace("Read LOGS granted to " + packet.Username)
+
+	buffer := new(bytes.Buffer)
+
+	buffer.WriteString("{\"action\":\"read\", \"bucketname\":\"LOGS\", \"items\" : [")
+
+	lowdate, err := strconv.ParseInt(packet.Key, 10, 64)
+	if err != nil {
+		return PrepMessageForUser("Internal error while parsing lowkey"), err
+	}
+
+	highdate, err := strconv.ParseInt(packet.MaxKey, 10, 64)
+	if err != nil {
+		return PrepMessageForUser("Internal error while parsing highkey"), err
+	}
+
+	logger.Trace("***************key=" + packet.Key + " maxkey=" + packet.MaxKey)
+
+	var sqlquery string
+
+	var rows *sql.Rows
+	/*
+		id, timeofaction, jsonid, username, action, previousdata, newdata
+	*/
+	sqlquery = "select jsonb_build_object('$id', ID," +
+		"'timeofaction', timeofaction," +
+		"'bucketname', bucketname," +
+		"'jsonid', jsonid," +
+		"'username', username," +
+		"'action', action," +
+		"'previousdata', previousdata," +
+		"'newdata', newdata) AS DATA FROM ecureuil.logs WHERE ecureuil.logs.timeofaction between $1 AND $2;"
+
+	rows, err = sqldb.Query(sqlquery, time.Unix(lowdate, 0), time.Unix(highdate, 0))
+
+	logger.Trace(sqlquery + " " + time.Unix(lowdate, 0).Format("2006-01-02T15:04:05") + " " + time.Unix(highdate, 0).Format("2006-01-02T15:04:05"))
+
+	var result string
+	var count int
+
+	if err != nil {
+		logger.Error(err.Error())
+	} else {
+
+		logger.Trace("ready to read rows")
+
+		for rows.Next() {
+
+			var data string
+
+			err = rows.Scan(&data)
+			if err != nil {
+				logger.Error(err.Error())
+				return nil, err
+			}
+			if count <= 0 {
+				result += data
+			} else {
+				result += "," + data
+			}
+			count++
+		}
+	}
+
+	if rows != nil {
+		rows.Close()
+	}
+
+	buffer.WriteString(result)
+
+	buffer.WriteString("]}")
+
+	return buffer.Bytes(), err
+
+}
+
 /*DBDelete user is asking to delete information from the database  make sure he has access to perform delete and reply to user sucess or failure!
 delete header and data and broadcast change.
 return usermessage and error
@@ -681,7 +773,7 @@ func DBUpdate(packet *MsgClientCmd, defered bool) ([]byte, error) {
 		logger.Trace("request update bucket " + packet.Bucketname)
 
 		// if access if not granted by default then check if the user has rights
-		access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-write")
+		access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-update")
 		if err != nil {
 			logger.Warn(packet.Username + " update " + packet.Bucketname + " error: " + err.Error())
 			return PrepMessageForUser("Error while updating or access denied."), err
@@ -712,11 +804,33 @@ func DBUpdate(packet *MsgClientCmd, defered bool) ([]byte, error) {
 
 	default:
 
+		/* chek if status or itemstatus is present in the data json
+		do not allow change unless user as admin or statuschange rights
+		*/
+
+		jsonParsed, err := gabs.ParseJSON(packet.Data)
+		statusexists := jsonParsed.ExistsP("itemstatus") || jsonParsed.ExistsP("status")
+
+		if statusexists {
+			// confirm user has admin or statuschange
+
+			access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-statuschange")
+			if err != nil {
+				logger.Warn(packet.Username + " update " + packet.Bucketname + " error: " + err.Error())
+				return PrepMessageForUser("Error while updating or access denied."), err
+			}
+
+			if access == false {
+				logger.Warn(packet.Username + " no status rights for update " + packet.Bucketname + " error: " + err.Error())
+				return PrepMessageForUser("Access denied you can't change the status value."), err
+			}
+		}
+
 		// $id, $bucketname and other $var are saved into the json object but will be
 		// overwritten when data is reed from the database.
-
-		sqlquery := "UPDATE ecureuil.JSONOBJECTS set UpdatedBy = $1, UpdatedTime = $2, DATA = $3 WHERE ID = $4"
-		_, err := sqldb.Exec(sqlquery, packet.Username, uint64(UnixUTCSecs()), SanitizeJSONStrHTML(string(packet.Data)), packet.Key)
+		// must change bucketname because it might change ie from PLANNED-DRAFT to PLANNED
+		sqlquery := "UPDATE ecureuil.JSONOBJECTS set bucketname = $5, UpdatedBy = $1, UpdatedTime = $2, DATA = $3 WHERE ID = $4"
+		_, err = sqldb.Exec(sqlquery, packet.Username, uint64(UnixUTCSecs()), SanitizeJSONStrHTML(string(packet.Data)), packet.Key, packet.Bucketname)
 
 		if err != nil {
 			logger.Trace(err.Error())
@@ -775,7 +889,7 @@ func DBInsert(packet *MsgClientCmd, defered bool) ([]byte, error) {
 		logger.Trace("request update bucket in " + packet.Bucketname)
 
 		// if access if not granted by default then check if the user has rights
-		access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-write")
+		access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-insert")
 		if err != nil {
 			logger.Warn(packet.Username + " update " + packet.Bucketname + " error: " + err.Error())
 			return PrepMessageForUser("Error while updating or access denied."), err
@@ -997,6 +1111,7 @@ func CreateDB(host, user, pass *string) string {
 		"TIMEOFACTION timestamptz NOT NULL DEFAULT NOW()," +
 		"JSONID uuid NOT NULL," +
 		"USERNAME varchar(64) NOT NULL," +
+		"BUCKETNAME varchar(64)," +
 		"ACTION varchar(16) NOT NULL," +
 		"PREVIOUSDATA jsonb," +
 		"NEWDATA jsonb NOT NULL);")
@@ -1099,7 +1214,7 @@ func CreateDB(host, user, pass *string) string {
 		"createdonnetwork uuid;" +
 		"BEGIN " +
 		"if (TG_OP = 'DELETE') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.ID, OLD.updatedby, TG_OP, OLD.data, OLD.data);" +
+		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.BUCKETNAME, OLD.ID, OLD.updatedby, TG_OP, OLD.data, OLD.data);" +
 		"data = OLD.data;" +
 		"ID = OLD.ID;" +
 		"bucketname = OLD.BUCKETNAME;" +
@@ -1110,7 +1225,7 @@ func CreateDB(host, user, pass *string) string {
 		"createdonserver = OLD.CREATEDONSERVER;" +
 		"createdonnetwork = OLD.CREATEDONNETWORK;" +
 		"ELSEIF (TG_OP = 'UPDATE') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.ID, NEW.updatedby, TG_OP, OLD.data, NEW.data);" +
+		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.BUCKETNAME, OLD.ID, NEW.updatedby, TG_OP, OLD.data, NEW.data);" +
 		"ID = OLD.ID;" +
 		"data = NEW.data;" +
 		"bucketname = OLD.BUCKETNAME;" +
@@ -1121,7 +1236,7 @@ func CreateDB(host, user, pass *string) string {
 		"createdonserver = OLD.CREATEDONSERVER;" +
 		"createdonnetwork = OLD.CREATEDONNETWORK;" +
 		"ELSIF (TG_OP = 'INSERT') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, JSONID, USERNAME, ACTION, NEWDATA) VALUES (NOW(), NEW.ID, NEW.updatedby, TG_OP, NEW.data);" +
+		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, NEWDATA) VALUES (NOW(), NEW.BUCKETNAME, NEW.ID, NEW.updatedby, TG_OP, NEW.data);" +
 		"ID = NEW.ID;" +
 		"data = NEW.data;" +
 		"bucketname = NEW.BUCKETNAME;" +
