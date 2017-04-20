@@ -401,6 +401,9 @@ ecureuil.insert("BULLETINS", {"message":"Hello don't forget...", "time":1232141}
 ```
 -	This function is use to insert database into the database.  You must provide the bucketname where to put the information an a json object.  The last parameter defered is optional, defered is use if you want to insert the item automatically at a later time.  It must be an EPOCH value number of seconds after 1970 Jan 01 in UTC time zone. If defered is small than current time or not present the data is inserted right away.
 
+	if user does not have statuschange rights then property status and itemstatus will be set to 30 (draft).  This is usefull if you want user to create draft item that need to be confirmed or approved.
+
+
 	- Special case if the bucket is "USERS" you will be entering a new user in the database.  Users are not saved in the SQL but in a local file supported by STORM database.
 
 	- In any case you must have write privilege to the bucketname to be able to insert data.
@@ -431,6 +434,8 @@ ecureuil.update("BULLETINS", {"id": "84555e5f-4272-44d2-ac2f-92635876d16f", mess
 	- If you do not set the parameter id no update will be performed.
 
 	- Once the data is update in the database an event **onupdate** will be generated.  This is the confirmation that the data has been saved and broadcasted to all users listening on that bucket.
+
+	if user does not have statuschange right associate with his account then user can't change the status or itemstatus properties.  User can change all other properties.  If user try to update status without th right the backend server will respond with an error message.
 
 Saving users, unlike other object USER must follow a specific structure, any properties that are not part of the structure will be ignored. See special bucket for more details.
 
