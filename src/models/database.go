@@ -934,6 +934,43 @@ func DBInsert(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			ID = uuid.NewV4().String()
 		}
 
+		jsonobject := "{}"
+
+		jsonParsed, err := gabs.ParseJSON(packet.Data)
+		statusexists := jsonParsed.ExistsP("itemstatus")
+
+		if statusexists {
+			// confirm user has admin or statuschange
+
+			access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-statuschange")
+			if err != nil {
+				logger.Warn(packet.Username + " update " + packet.Bucketname + " error: " + err.Error())
+				return PrepMessageForUser("Error while updating or access denied."), err
+			}
+
+			if access == false {
+				// reset itemstatus to 30
+				jsonParsed.SetP("30", "itemstatus")
+			}
+		}
+
+		statusexists = jsonParsed.ExistsP("status")
+
+		if statusexists {
+			// confirm user has admin or statuschange
+
+			access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), packet.Bucketname+"-statuschange")
+			if err != nil {
+				logger.Warn(packet.Username + " update " + packet.Bucketname + " error: " + err.Error())
+				return PrepMessageForUser("Error while updating or access denied."), err
+			}
+
+			if access == false {
+				// reset status to 30
+				jsonParsed.SetP("30", "status")
+			}
+		}
+
 		// ID, BUCKETNAME, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONNETWORK, CREATEDONSERVER, DATA
 		sqlquery := "INSERT into ecureuil.JSONOBJECTS (ID, BUCKETNAME, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONNETWORK, CREATEDONSERVER, DATA) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9);"
 
@@ -941,8 +978,8 @@ func DBInsert(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			Configuration.NetworkID = "00000000-0000-0000-0000-000000000000"
 		}
 
-		_, err := sqldb.Exec(sqlquery, ID, packet.Bucketname, packet.Username, packet.Username, uint64(UnixUTCSecs()), uint64(UnixUTCSecs()), Configuration.NetworkID, Configuration.ID,
-			SanitizeJSONStrHTML(string(packet.Data)))
+		_, err = sqldb.Exec(sqlquery, ID, packet.Bucketname, packet.Username, packet.Username, uint64(UnixUTCSecs()), uint64(UnixUTCSecs()), Configuration.NetworkID, Configuration.ID,
+			SanitizeJSONStrHTML(jsonParsed.String()))
 
 		if err == nil {
 
