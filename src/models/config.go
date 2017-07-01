@@ -55,29 +55,6 @@ This bucket should not sync with other server
 
 const configIdValue = "a62cfcd3-a7d2-4483-aaa8-2931be5927fb" // use to read and save config in SQL
 
-type tsmtp struct {
-	IP string `json:"smtpip"` // smtp server ip to send alert email
-
-	User string `json:"smtpuser"` // smtp server username to send alert email
-
-	Password string `json:"smtppassword"` // smtp server password to send alert email
-
-	Port int `json:"smtpport"` // smtp server port to send alert email
-
-	Emailfrom string `json:"smtpemailfrom"` // smtp email from to send alert email
-
-	Ssl int `json:"smtpssl"` // smtp server use SSL to send alert email
-
-	Timeout int `json:"smtptimeout"` // smtp server timeout
-
-	Auth int `json:"smtpauth"` // smtp type of authentication
-
-	Function int `json:"smtpfunction"` // smtp type of function
-
-	Enabled int `json:"smtpenabled"` // is smtp email alert enabled? default is false
-
-}
-
 /*TConfig structure type to hold all the configuration parameters
 
 This Bucket will contain "current" key configuration and any other backup configutation
@@ -100,7 +77,25 @@ type TConfig struct {
 
 	KeepLogForDays int `json:"keeplogfordays"` // indicate number of days to keep log default 365 days
 
-	SMTP tsmtp `storm:"inline" json:"smtp"` // smtp details to send email!
+	SMTPIP string `json:"smtpip"` // smtp server ip to send alert email
+
+	SMTPUser string `json:"smtpuser"` // smtp server username to send alert email
+
+	SMTPPassword string `json:"smtppassword"` // smtp server password to send alert email
+
+	SMTPPort int `json:"smtpport"` // smtp server port to send alert email
+
+	SMTPEmailfrom string `json:"smtpemailfrom"` // smtp email from to send alert email
+
+	SMTPSsl int `json:"smtpssl"` // smtp server use SSL to send alert email
+
+	SMTPTimeout int `json:"smtptimeout"` // smtp server timeout
+
+	SMTPAuth int `json:"smtpauth"` // smtp type of authentication
+
+	SMTPFunction int `json:"smtpfunction"` // smtp type of function
+
+	SMTPEnabled int `json:"smtpenabled"` // is smtp email alert enabled? default is false
 
 	Port int `json:"port"` // listen for connection on this port
 
@@ -214,16 +209,16 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
 	oldconfig, err := json.Marshal(Configuration)
 
 	Configuration.NetworkID = item.NetworkID
-	Configuration.SMTP.IP = item.SMTP.IP
-	Configuration.SMTP.User = item.SMTP.User
-	Configuration.SMTP.Password = item.SMTP.Password
-	Configuration.SMTP.Port = item.SMTP.Port
-	Configuration.SMTP.Emailfrom = item.SMTP.Emailfrom
-	Configuration.SMTP.Ssl = item.SMTP.Ssl
-	Configuration.SMTP.Timeout = item.SMTP.Timeout
-	Configuration.SMTP.Auth = item.SMTP.Auth
-	Configuration.SMTP.Function = item.SMTP.Function
-	Configuration.SMTP.Enabled = item.SMTP.Enabled
+	Configuration.SMTPIP = item.SMTPIP
+	Configuration.SMTPUser = item.SMTPUser
+	Configuration.SMTPPassword = item.SMTPPassword
+	Configuration.SMTPPort = item.SMTPPort
+	Configuration.SMTPEmailfrom = item.SMTPEmailfrom
+	Configuration.SMTPSsl = item.SMTPSsl
+	Configuration.SMTPTimeout = item.SMTPTimeout
+	Configuration.SMTPAuth = item.SMTPAuth
+	Configuration.SMTPFunction = item.SMTPFunction
+	Configuration.SMTPEnabled = item.SMTPEnabled
 	Configuration.Addr = item.Addr
 	Configuration.Port = item.Port
 	Configuration.MaxReadItemsFromDB = item.MaxReadItemsFromDB
@@ -306,19 +301,19 @@ func ConfigurationINIT() {
  */
 func ValidateConfig(config *TConfig) error {
 
-	if config.SMTP.IP != "" {
-		if !govalidator.IsIP(config.SMTP.IP) {
+	if config.SMTPIP != "" {
+		if !govalidator.IsIP(config.SMTPIP) {
 			return errors.New("SMTP IP is not a valid IP address")
 		}
 	}
 
-	if config.SMTP.Emailfrom != "" {
-		if !govalidator.IsEmail(config.SMTP.Emailfrom) {
+	if config.SMTPEmailfrom != "" {
+		if !govalidator.IsEmail(config.SMTPEmailfrom) {
 			return errors.New("SMTP Email from is not a valid email address")
 		}
 	}
 
-	if config.SMTP.Port < 0 || config.SMTP.Port > 65535 {
+	if config.SMTPPort < 0 || config.SMTPPort > 65535 {
 		return errors.New("SMTP Port is not valid (0..65535)")
 	}
 
@@ -375,16 +370,16 @@ func setDefaultConfig() {
 	Configuration.ID = uuid.NewV4().String() // ServerID
 	Configuration.MaxReadItemsFromDB = 1000000
 
-	Configuration.SMTP.IP = ""
-	Configuration.SMTP.User = ""
-	Configuration.SMTP.Password = ""
-	Configuration.SMTP.Port = 25
-	Configuration.SMTP.Emailfrom = ""
-	Configuration.SMTP.Ssl = 0
-	Configuration.SMTP.Timeout = 60
-	Configuration.SMTP.Auth = 0
-	Configuration.SMTP.Function = 0
-	Configuration.SMTP.Enabled = 0
+	Configuration.SMTPIP = ""
+	Configuration.SMTPUser = ""
+	Configuration.SMTPPassword = ""
+	Configuration.SMTPPort = 25
+	Configuration.SMTPEmailfrom = ""
+	Configuration.SMTPSsl = 0
+	Configuration.SMTPTimeout = 60
+	Configuration.SMTPAuth = 0
+	Configuration.SMTPFunction = 0
+	Configuration.SMTPEnabled = 0
 	Configuration.Port = 443
 	Configuration.Addr = ""
 	Configuration.LoginPerMin = 3

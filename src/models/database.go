@@ -160,7 +160,9 @@ DBLog a change in the database
 */
 func DBLog(bucketname, username, action string, PreviousData, NewData []byte) {
 
-	rows, err := sqldb.Query("INSERT into ecureuil.LOGS (JSONID,USERNAME,ACTION,PREVIOUSDATA,NEWDATA) VALUES ($1,$2,$3,$4,$5)", bucketname, username, action, PreviousData, NewData)
+	rows, err := sqldb.Query("INSERT into ecureuil.LOGS (BUCKETNAME,USERNAME,ACTION,PREVIOUSDATA,NEWDATA,JSONID) VALUES ($1,$2,$3,$4,$5,$6)",
+		bucketname, username, action, PreviousData, NewData, "a364fa14-0e48-464a-8556-0978d99d688a")
+
 	defer rows.Close()
 
 	if err != nil {
@@ -934,8 +936,6 @@ func DBInsert(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			ID = uuid.NewV4().String()
 		}
 
-		jsonobject := "{}"
-
 		jsonParsed, err := gabs.ParseJSON(packet.Data)
 		statusexists := jsonParsed.ExistsP("itemstatus")
 
@@ -1302,7 +1302,79 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
+	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.useraccess(username text, rightname text) " +
+		"RETURNS integer AS " +
+		"$BODY$ " +
+		"DECLARE " +
+		"RightID uuid; " +
+		"adminRightID uuid; " +
+		"HasRight uuid; " +
+		"json_object json; " +
+		"item json; " +
+		"itemid uuid; " +
+		"v_output text[]; " +
+		"usergroups jsonb; " +
+		"m text[]; " +
+		"BEGIN " +
+		"select id from ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = 'admin' into adminRightID; " +
+		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE bucketname = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"' || adminRightID || '\" ] }')::jsonb) THEN " +
+		"RETURN 1; " +
+		"ELSE " +
+		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE bucketname = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"admin\" ] }')::jsonb) THEN " +
+		"	RETURN 1; " +
+		"END IF; " +
+		"END IF; " +
+		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = rightname) THEN " +
+		"select id from ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = rightname into RightID; " +
+		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE bucketname = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb) THEN " +
+		"RETURN 1; " +
+		"END IF; " +
+		"FOR itemid IN SELECT ID FROM ecureuil.jsonobjects WHERE bucketname = 'USERGROUPS' AND data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb " +
+		"LOOP " +
+		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where bucketname = 'USERS' and data->>'name' = username AND data @> ('{ \"group\": [\"' || itemid || '\"]}')::jsonb) THEN " +
+		"return 1; -- user has a group that have the right " +
+		"END IF; " +
+		"END LOOP; " +
+		"END IF; " +
+		"RETURN 0; " +
+		"END; " +
+		"$BODY$ " +
+		"LANGUAGE plpgsql VOLATILE " +
+		"COST 100; ")
+
+	if err != nil {
+		return err.Error()
+	}
+
+	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.setjsonid() " +
+		"RETURNS trigger AS $$ " +
+		"DECLARE " +
+		" id text; " +
+		"BEGIN  " +
+		"   IF (TG_OP = 'INSERT') THEN  " +
+		" id = '\"' || NEW.ID::text || '\"'; " +
+		"NEW.data = NEW.data::jsonb - '$id' || ('{\"$id\":' || id || '}')::jsonb; " +
+		"ELSEIF (TG_OP = 'UPDATE') THEN " +
+		"IF (OLD.data->>'$id' is NULL AND NEW.data->>'$id' is NULL) THEN " +
+		"id = '\"' || OLD.ID::text || '\"'; " +
+		"NEW.data = NEW.data::jsonb - '$id' || ('{\"$id\":' || id || '}')::jsonb; " +
+		"END IF; " +
+		"END IF; " +
+		"RETURN NEW; " +
+		"END " +
+		"$$ LANGUAGE plpgsql; ")
+	if err != nil {
+		return err.Error()
+	}
+
 	s = "ALTER FUNCTION ecureuil.logtrigger() OWNER TO postgres;"
+	_, err = sqldb.Exec(s)
+	if err != nil {
+		fmt.Println(s)
+		return err.Error()
+	}
+
+	s = "CREATE TRIGGER updatejsonId BEFORE INSERT OR UPDATE ON ecureuil.JSONOBJECTS FOR EACH ROW EXECUTE PROCEDURE ecureuil.setjsonid();"
 	_, err = sqldb.Exec(s)
 	if err != nil {
 		fmt.Println(s)
@@ -1338,6 +1410,13 @@ func CreateDB(host, user, pass *string) string {
 	}
 
 	s = "GRANT EXECUTE ON FUNCTION ecureuil.logtrigger() TO " + DatabaseUser + ";"
+	_, err = sqldb.Exec(s)
+	if err != nil {
+		fmt.Println(s)
+		return err.Error()
+	}
+
+	s = "GRANT EXECUTE ON FUNCTION ecureuil.useraccess(text,text) TO " + DatabaseUser + ";"
 	_, err = sqldb.Exec(s)
 	if err != nil {
 		fmt.Println(s)

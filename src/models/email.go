@@ -94,7 +94,7 @@ func ReceiveEmailAlertChangeReq(packet *MsgClientCmd) ([]byte, error) {
 	//DB.Save(&Info)
 
 	SendEmail([]string{Info.Email},
-		Configuration.SMTP.Emailfrom,
+		Configuration.SMTPEmailfrom,
 		Configuration.EmailAlertSubject,
 		Configuration.EmailAlertBody+"\n\n https://"+Configuration.Addr+"/confirm/?ID="+Info.ID)
 
@@ -145,20 +145,20 @@ func SendEmail(to []string, from, subject, body string) {
 	logger.Trace("sending email")
 
 	// for debuging!
-	Configuration.SMTP.Enabled = 1
-	Configuration.SMTP.User = "marc.gauthier3@gmail.com"
-	Configuration.SMTP.Password = "azy4azy4"
-	Configuration.SMTP.IP = "smtp.gmail.com"
-	Configuration.SMTP.Port = 587 //465 //587
-	Configuration.SMTP.Emailfrom = "marc.gauthier3@gmail.com"
+	Configuration.SMTPEnabled = 1
+	Configuration.SMTPUser = "marc.gauthier3@gmail.com"
+	Configuration.SMTPPassword = "azy4azy4"
+	Configuration.SMTPIP = "smtp.gmail.com"
+	Configuration.SMTPPort = 587 //465 //587
+	Configuration.SMTPEmailfrom = "marc.gauthier3@gmail.com"
 
 	// check if email alert are enabled.
-	if Configuration.SMTP.Enabled == 0 {
+	if Configuration.SMTPEnabled == 0 {
 		return
 	}
 
 	// Set up authentication information.
-	auth := smtp.PlainAuth("", Configuration.SMTP.User, Configuration.SMTP.Password, Configuration.SMTP.IP)
+	auth := smtp.PlainAuth("", Configuration.SMTPUser, Configuration.SMTPPassword, Configuration.SMTPIP)
 
 	tolist := ""
 	for i := 0; i < len(to); i++ {
@@ -175,7 +175,7 @@ func SendEmail(to []string, from, subject, body string) {
 		body)
 
 	logger.Trace("connecting to smtp server")
-	err := smtp.SendMail(Configuration.SMTP.IP+":"+strconv.Itoa(Configuration.SMTP.Port), auth, from, to, msg)
+	err := smtp.SendMail(Configuration.SMTPIP+":"+strconv.Itoa(Configuration.SMTPPort), auth, from, to, msg)
 
 	if err != nil {
 		log.Fatal("fataerror :" + err.Error())

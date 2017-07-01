@@ -388,14 +388,6 @@ func (c *Client) read() {
 
 				user, err = DBGetLogs(&packet)
 
-			} else if packet.Action == "STATS" {
-
-				// overwrite any provided credential with the proper credential
-				packet.Username = c.username
-				packet.Password = c.password
-				// create a valid bucket name! and give the creating  users rights to it!
-				user, err = GetStats(&packet)
-
 			} else if packet.Action == "UPDATE" {
 
 				/*

@@ -136,6 +136,7 @@ func DBLogin(packet *MsgClientCmd) ([]byte, error) {
 		if err != nil {
 			rights = "[]"
 		} else {
+			logger.Info("*******************************************************************************" + string(r))
 			rights = string(r)
 		}
 
@@ -145,8 +146,8 @@ func DBLogin(packet *MsgClientCmd) ([]byte, error) {
 		return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":" + settings + ", \"rights\":" + rights + ", \"username\":\"" + packet.Username + "\"}"), nil
 	}
 
-	// sucessfull login sent the good news to the user without settings.
-	return []byte("{ \"action\":\"login\", \"result\":\"success\", \"settings\":{}, \"username\":\"" + packet.Username + "\"}"), nil
+	// Send Response to user!
+	return []byte("{ \"action\":\"login\", \"result\":\"failed\", \"username\":\"" + packet.Username + "\"" + ", \"error\":\"" + err.Error() + "\"}"), err
 
 }
 
@@ -234,7 +235,7 @@ func GetUsers(packet *MsgClientCmd) ([]byte, error) {
 
 	// what type of information user want to extract?
 
-	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"users\", \"items\" : [")
+	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"USERS\", \"items\" : [")
 
 	for i := 0; i < len(Users); i++ {
 
@@ -365,7 +366,7 @@ func UserUpdate(packet *MsgClientCmd) error {
 	if err == nil {
 		logger.Info(packet.Username + " has modify " + string(item.ID))
 
-		go DBLog("USERS", packet.Username, packet.Action, []byte(""), packet.Data)
+		//DBLog("USERS", packet.Username, packet.Action, []byte(""), packet.Data)
 
 	} else {
 		logger.Trace("Save error: " + err.Error())
@@ -416,27 +417,40 @@ func UserSave(user *TUser, PasswordHasChanged bool) error {
  */
 func VerifyUserHasRight(username []byte, rightname string) error {
 
-	if username == nil {
-		username = []byte("guess")
+	// "select UserAccess ('aaaa', 'testing');" return 1 if has right else 0
+
+	sqlquery := "select ecureuil.UserAccess ('" + string(username) + "', '" + rightname + "');"
+
+	logger.Trace(sqlquery)
+
+	rows, err := sqldb.Query(sqlquery)
+
+	defer rows.Close()
+
+	if err != nil {
+		return err
 	}
 
-	user := userFind(string(username))
+	for rows.Next() {
 
-	if user == nil {
-		logger.Trace("VerifyUserHasRight " + string(username) + " user not found")
-		return errors.New("User not found")
-	}
+		data := 0
+		err = rows.Scan(&data)
 
-	if ok := IsStrInArray("admin", user.Rights); !ok {
-
-		/* user does not have admin check for specific right */
-
-		if ok := IsStrInArray(rightname, user.Rights); !ok {
-			return errors.New("User does not have the right")
+		if err != nil {
+			logger.Error(err.Error())
+			return err
 		}
+
+		if data == 1 {
+			logger.Trace("============access granted!")
+			return nil
+		}
+		break
 	}
 
-	return nil
+	logger.Trace("============access denied!")
+
+	return errors.New("User does not have access")
 
 }
 
@@ -565,6 +579,8 @@ func loadUsers() error {
 		}
 
 		user := TUser{}
+
+		//	logger.Info(">>>>>>>>>>>>>>>>>>>>>>LoadUser:" + data)
 
 		err = json.Unmarshal([]byte(data), &user)
 		if err != nil {
