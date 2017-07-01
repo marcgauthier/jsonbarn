@@ -56,7 +56,6 @@ import (
 	"models"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/antigloss/go/logger"
 	"github.com/gorilla/mux"
@@ -216,8 +215,6 @@ func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	// A single string flag called "species" with default value "gopher".
-
 	user := flag.String("user", "", "postgresql user name with admin rights")
 	password := flag.String("password", "", "postgresql user password")
 	host := flag.String("host", "", "postgresql server ip or hostname")
@@ -353,17 +350,17 @@ func main() {
 		Start the webserver and respond to HTTPS request only
 	*/
 
-	s := models.Configuration.Addr + ":" + strconv.Itoa(models.Configuration.Port)
+	s := "localhost:443"
 
 	logger.Trace("Starting the HTTPS Listenner on " + s)
 
 	go http.ListenAndServeTLS(s, "server.crt", "server.key", nil)
 
 	// starting a redirection service from HTTP to HTTPS
-	req := "HTTP " + models.Configuration.Addr + ":80 to HTTPS " + models.Configuration.Addr + ":" + strconv.Itoa(models.Configuration.Port)
+	req := "HTTP localhost:80 to HTTPS localhost:443"
 
 	logger.Trace("Starting the HTTP to HTTPS redirect Listenner " + req)
 
-	http.ListenAndServe(models.Configuration.Addr+":80", http.HandlerFunc(redirectToHTTPS))
+	http.ListenAndServe("localhost:80", http.HandlerFunc(redirectToHTTPS))
 
 }
