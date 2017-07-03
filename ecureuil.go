@@ -328,21 +328,8 @@ func main() {
 
 	if !CertificateExists || !KeyExists {
 
-		logger.Info("Creating https certificates...")
-
-		err := models.CreateCertificates()
-
-		if err != nil {
-
-			logger.Error(err.Error())
-			logger.Panic("Unable to create certificates, please provide server.crt and server.key.")
-
-			panic("Unable to create certificates, please provide server.crt and server.key.")
-
-		} else {
-
-			logger.Info("Certificates successfuly created.")
-		}
+		logger.Panic("SSL certificates don't exists (server.crt and server.key...)")
+		panic("Unable to create certificates, please provide server.crt and server.key.")
 
 	}
 
