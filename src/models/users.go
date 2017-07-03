@@ -71,8 +71,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"strconv"
 
+	"github.com/Jeffail/gabs"
 	"github.com/antigloss/go/logger"
 	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -93,10 +93,6 @@ var DefaultadminNAME = []byte("owlsoadmin") // default username for admin user
 /*DefaultadminPASSWORD default password for the default DefaultadminNAME
  */
 var DefaultadminPASSWORD = []byte("p@ssw0rd") // default password for admin user
-
-/*Users list of user from database
- */
-var Users = []TUser{}
 
 /*DBLogin check if username and password are OK
  */
@@ -193,7 +189,7 @@ func DBUserSettings(packet *MsgClientCmd) ([]byte, error) {
 
 		user.Settings, err = json.Marshal(oldsettings)
 
-		saveUser(user)
+		saveUser(user, packet.Username)
 
 		// sucessfull SAVE.
 		return nil, nil
@@ -204,10 +200,39 @@ func DBUserSettings(packet *MsgClientCmd) ([]byte, error) {
 }
 
 func userFind(name string) *TUser {
-	for i := 0; i < len(Users); i++ {
-		if Users[i].ID == name {
-			return &Users[i]
+
+	sqlquery := "select data from ecureuil.jsonobjects WHERE data->>'$bucketname' = '" + string(UserBUCKET) + "' AND data->>'name' = $1;"
+
+	logger.Trace(sqlquery)
+
+	rows, err := sqldb.Query(sqlquery, name)
+
+	defer rows.Close()
+
+	if err != nil {
+		logger.Error(err.Error())
+		return nil
+	}
+
+	for rows.Next() {
+
+		data := ""
+		err = rows.Scan(&data)
+
+		if err != nil {
+			logger.Error(err.Error())
+			return nil
 		}
+
+		user := TUser{}
+		err := json.Unmarshal([]byte(data), &user)
+
+		if err != nil {
+			logger.Error(err.Error())
+			return nil
+		}
+		return &user
+
 	}
 	return nil
 }
@@ -235,25 +260,43 @@ func GetUsers(packet *MsgClientCmd) ([]byte, error) {
 
 	// what type of information user want to extract?
 
-	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"USERS\", \"items\" : [")
+	buffer.WriteString("{\"action\":\"read\", \"bucketname\": \"" + string(UserBUCKET) + "\", \"items\" : [")
 
-	for i := 0; i < len(Users); i++ {
+	// get all users information except for password info.
 
-		// do not publish password
-		t := Users[i].PasswordHash
-		Users[i].PasswordHash = []byte("")
+	sqlquery := "select data - 'passwordhash' - 'newpassword' from ecureuil.jsonobjects where data->>'$bucketname' = '" + string(UserBUCKET) + "';"
 
-		u, err := json.Marshal(Users[i])
+	logger.Trace(sqlquery)
 
-		// restore password
-		Users[i].PasswordHash = t
+	rows, err := sqldb.Query(sqlquery)
 
-		if err == nil {
-			if i > 0 {
-				buffer.WriteString(",")
-			}
-			buffer.Write(u)
+	defer rows.Close()
+
+	if err != nil {
+		logger.Error(err.Error())
+		return nil, nil
+	}
+
+	start := 0
+
+	for rows.Next() {
+
+		if start > 0 {
+			buffer.WriteString(",")
 		}
+
+		data := ""
+		err = rows.Scan(&data)
+
+		if err != nil {
+			logger.Error(err.Error())
+			return nil, nil
+		}
+
+		start = 1
+
+		buffer.WriteString(data)
+
 	}
 
 	buffer.WriteString("]}")
@@ -361,7 +404,7 @@ func UserUpdate(packet *MsgClientCmd) error {
 
 	// save user in database.
 	//************************************************
-	err = UserSave(&item, item.NewPassword != "")
+	err = UserSave(&item, item.NewPassword != "", packet.Username)
 
 	if err == nil {
 		logger.Info(packet.Username + " has modify " + string(item.ID))
@@ -384,7 +427,7 @@ func UserUpdate(packet *MsgClientCmd) error {
   This function does not verify if rights to make the change are valid, this process need
   to be perform before this function is called.
 */
-func UserSave(user *TUser, PasswordHasChanged bool) error {
+func UserSave(user *TUser, PasswordHasChanged bool, Username string) error {
 
 	if PasswordHasChanged {
 
@@ -397,7 +440,7 @@ func UserSave(user *TUser, PasswordHasChanged bool) error {
 		}
 
 		// because we just changed the password we can overwrite all fields
-		return saveUser(user)
+		return saveUser(user, Username)
 
 	}
 
@@ -409,7 +452,7 @@ func UserSave(user *TUser, PasswordHasChanged bool) error {
 		user.NewPassword = "" // do not save the password in clear in the database.
 	}
 
-	return saveUser(user)
+	return saveUser(user, Username)
 
 }
 
@@ -417,7 +460,7 @@ func UserSave(user *TUser, PasswordHasChanged bool) error {
  */
 func VerifyUserHasRight(username []byte, rightname string) error {
 
-	// "select UserAccess ('aaaa', 'testing');" return 1 if has right else 0
+	// call postgre function UserAccess "select UserAccess ('username', 'name of right');" return 1 if has right else 0
 
 	sqlquery := "select ecureuil.UserAccess ('" + string(username) + "', '" + rightname + "');"
 
@@ -450,7 +493,7 @@ func VerifyUserHasRight(username []byte, rightname string) error {
 
 	logger.Trace("============access denied!")
 
-	return errors.New("User does not have access")
+	return errors.New("User " + string(username) + " does not have access to " + rightname)
 
 }
 
@@ -504,138 +547,47 @@ func VerifyUserPassword(username, password []byte) (bool, error) {
 
 }
 
-/*UsersINIT initialize the database for users make sure there is at least one admin user present at all time.
+/*UsersINIT
  */
 func UsersINIT() {
 
-	logger.Info("Loading users.")
-
-	err := loadUsers()
-	if err != nil {
-		logger.Panic(err.Error())
-		panic(err.Error())
-	}
-
-	adminfound := false // check if at least one admin user exists.
-	exists := true      // if true then bucket users need to be created.
-
-	for i := range Users {
-
-		if IsStrInArray("admin", Users[i].Rights) {
-			logger.Trace("Found admin user: " + Users[i].ID)
-			adminfound = true
-		}
-	}
-
-	/* We need at least one user with admin rights! */
-
-	if !exists || !adminfound {
-
-		logger.Info("Creating default admin user.")
-
-		user := TUser{}
-		user.ID = string(DefaultadminNAME)
-		user.Rights = append(user.Rights, "admin")
-		user.NewPassword = string(DefaultadminPASSWORD) // hash will be calculate in UserSave
-
-		Users = append(Users, user) // add to list
-
-		err = UserSave(&user, true)
-		if err != nil {
-			logger.Panic("Error creating default admin account: " + err.Error())
-			panic("Error creating default admin account: " + err.Error())
-		}
-
-		logger.Info("A new default admin user " + user.ID + " was created.")
-
-	}
-
-	logger.Info("Initialization of USERS Bucket completed")
-
 }
 
-func loadUsers() error {
-
-	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE BUCKETNAME = 'USERS';"
-
-	logger.Trace(sqlquery)
-
-	rows, err := sqldb.Query(sqlquery)
-
-	defer rows.Close()
-
-	if err != nil {
-		return err
-	}
-
-	for rows.Next() {
-
-		var data string
-		err = rows.Scan(&data)
-
-		if err != nil {
-			logger.Error("Bad User: " + data + " " + err.Error())
-			continue
-		}
-
-		user := TUser{}
-
-		//	logger.Info(">>>>>>>>>>>>>>>>>>>>>>LoadUser:" + data)
-
-		err = json.Unmarshal([]byte(data), &user)
-		if err != nil {
-			logger.Error("Bad User: " + data + " " + err.Error())
-			continue
-		}
-
-		Users = append(Users, user)
-
-	}
-
-	logger.Trace("Number of users loaded: " + strconv.Itoa(len(Users)))
-	return nil // good to go!
-
-}
-
-func saveUser(u *TUser) error {
+func saveUser(u *TUser, Username string) error {
 
 	newuser, err := json.Marshal(u)
 	if err != nil {
 		return err
 	}
 
-	var count int64
+	user := userFind(u.ID)
 
-	sqlquery := "SELECT COUNT(*) FROM ecureuil.JSONOBJECTS WHERE DATA->>'name' = $1 AND BUCKETNAME = 'USERS';"
-	rows, err := sqldb.Query(sqlquery, u.ID)
-	defer rows.Close()
-
-	if rows.Next() {
-
-		err = rows.Scan(&count)
-		if err != nil {
-			logger.Error(err.Error())
-			return err
-		}
-
-	}
-
-	if count == 0 {
+	if user == nil {
 		// insert
 		logger.Trace("insert")
 
+		// start with empty json
+		jsonParsed, _ := gabs.ParseJSON(newuser)
+
 		id := uuid.NewV4().String()
 
-		sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (ID, DATA, bucketname, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONSERVER) " +
-			"VALUES ($1, $2, 'USERS', 'SYSTEM', 'SYSTEM',  $3, $3, $4)"
+		jsonParsed.SetP(id, "$id")
+		jsonParsed.SetP("USERS", "$bucketname")
+		jsonParsed.SetP(Username, "$updatedby")
+		jsonParsed.SetP(Configuration.NetworkID, "$createdonnetwork")
+		jsonParsed.SetP(Configuration.ID, "$createdonserver")
+		jsonParsed.SetP(uint64(UnixUTCSecs()), "$createdtime")
+		jsonParsed.SetP(uint64(UnixUTCSecs()), "$updatedtime")
 
-		_, err = sqldb.Exec(sqlquery, id, string(newuser), uint64(UnixUTCSecs()), Configuration.ID) // u.ID contain name!
+		sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (data) values ($1)"
+
+		_, err = sqldb.Exec(sqlquery, jsonParsed.String())
 
 	} else {
 		// update
 		logger.Trace("update")
 
-		sqlquery := "UPDATE ecureuil.JSONOBJECTS set data = $2 WHERE ecureuil.JSONOBJECTS.BUCKETNAME = '" + string(UserBUCKET) + "' AND ecureuil.JSONOBJECTS.DATA->>'name' = $1;"
+		sqlquery := "UPDATE ecureuil.JSONOBJECTS set data = $2 WHERE ecureuil.JSONOBJECTS.data->>'$bucketname' = '" + string(UserBUCKET) + "' AND ecureuil.JSONOBJECTS.DATA->>'name' = $1;"
 
 		_, err = sqldb.Exec(sqlquery, u.ID, string(newuser)) // u.ID contain name!
 
@@ -676,9 +628,9 @@ func UserDelete(packet *MsgClientCmd) error {
 
 	// Proceed with the deletion of the user.
 
-	sqlquery := "DELETE FROM ecureuil.JSONOBJECTS WHERE ecureuil.JSONOBJECTS.BUCKETNAME = '" + string(UserBUCKET) + "' AND ecureuil.JSONOBJECTS.DATA->>'name' = $1;"
+	sqlquery := "DELETE FROM ecureuil.JSONOBJECTS WHERE ecureuil.JSONOBJECTS.data->>'$bucketname' = '" + string(UserBUCKET) + "' AND ecureuil.JSONOBJECTS.DATA->>'name' = $1;"
 
-	_, err = sqldb.Exec(sqlquery, string(packet.Key)) // u.ID contain name!
+	_, err = sqldb.Exec(sqlquery, string(packet.Key)) // Key contain name!
 
 	return err
 

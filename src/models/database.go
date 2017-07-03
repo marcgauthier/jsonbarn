@@ -160,10 +160,16 @@ DBLog a change in the database
 */
 func DBLog(bucketname, username, action string, PreviousData, NewData []byte) {
 
-	rows, err := sqldb.Query("INSERT into ecureuil.LOGS (BUCKETNAME,USERNAME,ACTION,PREVIOUSDATA,NEWDATA,JSONID) VALUES ($1,$2,$3,$4,$5,$6)",
-		bucketname, username, action, PreviousData, NewData, "a364fa14-0e48-464a-8556-0978d99d688a")
+	jsonParsed, err := gabs.ParseJSON(NewData)
 
-	defer rows.Close()
+	id := "00000000-0000-0000-0000-000000000000"
+
+	if err == nil {
+		id = jsonParsed.Path("$id").String()
+	}
+
+	_, err = sqldb.Exec("INSERT into ecureuil.LOGS (BUCKETNAME,USERNAME,ACTION,PREVIOUSDATA,NEWDATA,JSONID) VALUES ($1,$2,$3,$4,$5,$6)",
+		bucketname, username, action, PreviousData, NewData, id)
 
 	if err != nil {
 		logger.Error(err.Error())
@@ -223,7 +229,7 @@ func DBCreateIndex(packet *MsgClientCmd) ([]byte, error) {
 	// if here the user has access granted
 	logger.Trace("Create Index access granted.")
 
-	q := "CREATE INDEX IF NOT EXISTS owlso_" + packet.Key + " ON ecureuil.JSONOBJECTS(BUCKETNAME, (" + createJSONSQLFieldName(packet.SearchField) + "))"
+	q := "CREATE INDEX IF NOT EXISTS ecureuil_" + packet.Key + " ON ecureuil.JSONOBJECTS(data->>'$bucketname', (" + createJSONSQLFieldName(packet.SearchField) + "))"
 
 	logger.Trace("Create index: " + q)
 	_, err = sqldb.Exec(q)
@@ -307,7 +313,7 @@ func DBListIndex(packet *MsgClientCmd) ([]byte, error) {
 	// if here the user has access granted
 	logger.Trace("LIST Indexes for " + packet.Username)
 
-	rows, err := sqldb.Query("select indexname from pg_indexes where indexname like 'owlso_%' AND tablename = 'jsonobjects';")
+	rows, err := sqldb.Query("select indexname from pg_indexes where indexname like 'ecureuil_%' AND tablename = 'jsonobjects';")
 
 	if err != nil {
 		return PrepMessageForUser("Error while listing indexes " + packet.Key), nil
@@ -487,14 +493,7 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 			return PrepMessageForUser("No query could be build"), nil
 		}
 
-		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
-			"'$bucketname', BUCKETNAME," +
-			"'$createdby', CREATEDBY," +
-			"'$updatedby', UPDATEDBY," +
-			"'$createdtime', CREATEDTIME," +
-			"'$updatedtime', UPDATEDTIME," +
-			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE bucketname = $1 AND (" + sqlquery + ") limit $2;"
+		sqlquery = "select DATA FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = $1 AND (" + sqlquery + ") limit $2;"
 
 		logger.Trace("buildquery = " + sqlquery)
 
@@ -502,28 +501,14 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 
 	} else if packet.Action == "READALL" {
 
-		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
-			"'$bucketname', BUCKETNAME," +
-			"'$createdby', CREATEDBY," +
-			"'$updatedby', UPDATEDBY," +
-			"'$createdtime', CREATEDTIME," +
-			"'$updatedtime', UPDATEDTIME," +
-			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE bucketname = $1 limit $2;"
+		sqlquery = "select DATA FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = $1 limit $2;"
 
 		logger.Trace(sqlquery + " " + packet.Bucketname + " " + strconv.Itoa(Configuration.MaxReadItemsFromDB))
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, Configuration.MaxReadItemsFromDB)
 
 	} else if packet.Action == "READONE" {
 
-		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
-			"'$bucketname', BUCKETNAME," +
-			"'$createdby', CREATEDBY," +
-			"'$updatedby', UPDATEDBY," +
-			"'$createdtime', CREATEDTIME," +
-			"'$updatedtime', UPDATEDTIME," +
-			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit 1;"
+		sqlquery = "select DATA FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit 1;"
 
 		logger.Trace(sqlquery)
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, packet.Key)
@@ -534,14 +519,7 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 		logger.Trace("searchfield=" + packet.SearchField)
 		logger.Trace("field=" + packet.Field)
 
-		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
-			"'$bucketname', BUCKETNAME," +
-			"'$createdby', CREATEDBY," +
-			"'$updatedby', UPDATEDBY," +
-			"'$createdtime', CREATEDTIME," +
-			"'$updatedtime', UPDATEDTIME," +
-			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit $3;"
+		sqlquery = "select DATA FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = $1 AND CAST(" + createJSONSQLFieldName(packet.SearchField) + " AS " + packet.Field + ") = $2 limit $3;"
 
 		logger.Trace(sqlquery)
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, packet.Key, Configuration.MaxReadItemsFromDB)
@@ -550,14 +528,7 @@ func DBRead(packet *MsgClientCmd) ([]byte, error) {
 
 		f := createJSONSQLFieldName(packet.SearchField)
 
-		sqlquery = "select DATA || jsonb_build_object('$id', ID," +
-			"'$bucketname', BUCKETNAME," +
-			"'$createdby', CREATEDBY," +
-			"'$updatedby', UPDATEDBY," +
-			"'$createdtime', CREATEDTIME," +
-			"'$updatedtime', UPDATEDTIME," +
-			"'$createdonnetwork', CREATEDONNETWORK," +
-			"'$createdonserver', CREATEDONSERVER) FROM ecureuil.jsonobjects WHERE BUCKETNAME = $1 AND CAST(" + f + " AS " + packet.Field + ") BETWEEN $2 AND $3 limit $4;"
+		sqlquery = "select DATA FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = $1 AND CAST(" + f + " AS " + packet.Field + ") BETWEEN $2 AND $3 limit $4;"
 
 		logger.Trace(sqlquery)
 		rows, err = sqldb.Query(sqlquery, packet.Bucketname, packet.Key, packet.MaxKey, Configuration.MaxReadItemsFromDB)
@@ -744,7 +715,7 @@ func DBDelete(packet *MsgClientCmd, defered bool) ([]byte, error) {
 
 	logger.Trace("access granted to delete.")
 
-	_, err = sqldb.Exec("DELETE from ecureuil.JSONOBJECTS WHERE ID = $1", packet.Key)
+	_, err = sqldb.Exec("DELETE from ecureuil.JSONOBJECTS WHERE data->>'$id' = $1", packet.Key)
 
 	if err != nil {
 		logger.Trace(err.Error())
@@ -752,7 +723,7 @@ func DBDelete(packet *MsgClientCmd, defered bool) ([]byte, error) {
 	}
 
 	// delete associated defered commands
-	_, err = sqldb.Exec("DELETE from ecureuil.JSONOBJECTS WHERE BUCKETNAME = 'DEFERED' AND DATA->>'key' = $1", packet.Key)
+	_, err = sqldb.Exec("DELETE from ecureuil.DEFEREDCOMMAND WHERE jsonid = $1", packet.Key)
 
 	if err != nil {
 		logger.Trace(err.Error())
@@ -828,10 +799,7 @@ func DBUpdate(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			}
 		}
 
-		// $id, $bucketname and other $var are saved into the json object but will be
-		// overwritten when data is reed from the database.
-		// must change bucketname because it might change ie from PLANNED-DRAFT to PLANNED
-		sqlquery := "UPDATE ecureuil.JSONOBJECTS set bucketname = $5, UpdatedBy = $1, UpdatedTime = $2, DATA = $3 WHERE ID = $4"
+		sqlquery := "UPDATE ecureuil.JSONOBJECTS set data->>'$bucketname' = $5, data->>'$updatedby' = $1, data->>'$updatedtime' = $2, data = $3 WHERE data->>'$id' = $4"
 		_, err = sqldb.Exec(sqlquery, packet.Username, uint64(UnixUTCSecs()), SanitizeJSONStrHTML(string(packet.Data)), packet.Key, packet.Bucketname)
 
 		if err != nil {
@@ -869,9 +837,9 @@ func DBDeferAction(packet *MsgClientCmd) ([]byte, error) {
 	//decoded, err := base64.StdEncoding.DecodeString(encoded)
 
 	// ID, BUCKETNAME, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONNETWORK, CREATEDONSERVER, DATA
-	sqlquery := "INSERT into ecureuil.DEFEREDCOMMAND (RUNTIME, COMMAND) VALUES ($1,$2)"
+	sqlquery := "INSERT into ecureuil.DEFEREDCOMMAND (RUNTIME, COMMAND, JSONID) VALUES ($1,$2,$3)"
 
-	_, err = sqldb.Exec(sqlquery, packet.Defered, encoded)
+	_, err = sqldb.Exec(sqlquery, packet.Defered, encoded, packet.Key)
 
 	if err != nil {
 		return PrepMessageForUser("Error unable to defer command: " + err.Error()), nil
@@ -971,15 +939,23 @@ func DBInsert(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			}
 		}
 
-		// ID, BUCKETNAME, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONNETWORK, CREATEDONSERVER, DATA
-		sqlquery := "INSERT into ecureuil.JSONOBJECTS (ID, BUCKETNAME, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONNETWORK, CREATEDONSERVER, DATA) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9);"
-
 		if Configuration.NetworkID == "" {
 			Configuration.NetworkID = "00000000-0000-0000-0000-000000000000"
 		}
 
-		_, err = sqldb.Exec(sqlquery, ID, packet.Bucketname, packet.Username, packet.Username, uint64(UnixUTCSecs()), uint64(UnixUTCSecs()), Configuration.NetworkID, Configuration.ID,
-			SanitizeJSONStrHTML(jsonParsed.String()))
+		jsonParsed.SetP(ID, "$id")
+		jsonParsed.SetP(packet.Bucketname, "$bucketname")
+		jsonParsed.SetP(packet.Username, "$createdby")
+		jsonParsed.SetP(packet.Username, "$updatedby")
+		jsonParsed.SetP(Configuration.NetworkID, "$createdonnetwork")
+		jsonParsed.SetP(Configuration.ID, "$createdonserver")
+		jsonParsed.SetP(uint64(UnixUTCSecs()), "$createdtime")
+		jsonParsed.SetP(uint64(UnixUTCSecs()), "$updatedtime")
+
+		// ID, BUCKETNAME, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONNETWORK, CREATEDONSERVER, DATA
+		sqlquery := "INSERT into ecureuil.JSONOBJECTS (DATA) VALUES ($1);"
+
+		_, err = sqldb.Exec(sqlquery, SanitizeJSONStrHTML(jsonParsed.String()))
 
 		if err == nil {
 
@@ -1043,7 +1019,7 @@ func DropDB(host, user, pass *string) string {
 	return "Schema ecureuil has been removed from the server."
 }
 
-/*CreateDB create a database and trigger in postgresql
+/*CreateDB create a database and trigger in postgresql should provide a .sql file instead of functin and should create the user and password.
  */
 func CreateDB(host, user, pass *string) string {
 
@@ -1176,62 +1152,62 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_BUCKETNAME ON ecureuil.JSONOBJECTS (BUCKETNAME);")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_BUCKETNAME ON ecureuil.JSONOBJECTS (data->>'$bucketname');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_CREATEDTIME ON ecureuil.JSONOBJECTS (CREATEDTIME);")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_CREATEDTIME ON ecureuil.JSONOBJECTS (data->>'$createdtime');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_UPDATEDTIME ON ecureuil.JSONOBJECTS (UPDATEDTIME);")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_UPDATEDTIME ON ecureuil.JSONOBJECTS (data->>'$updatedtime');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_CREATEDBY ON ecureuil.JSONOBJECTS (CREATEDBY);")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_CREATEDBY ON ecureuil.JSONOBJECTS (data->>'$createdby');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_UPDATEDBY ON ecureuil.JSONOBJECTS (UPDATEDBY);")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_UPDATEDBY ON ecureuil.JSONOBJECTS (data->>'$updatedby');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_starttime ON ecureuil.JSONOBJECTS ((DATA->>'starttime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_starttime ON ecureuil.JSONOBJECTS ((DATA->>'$starttime'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_endtime ON ecureuil.JSONOBJECTS ((DATA->>'endtime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_endtime ON ecureuil.JSONOBJECTS ((DATA->>'$endtime'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_recurrence ON ecureuil.JSONOBJECTS ((DATA->>'recurrence'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_recurrence ON ecureuil.JSONOBJECTS ((DATA->>'$recurrence'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_status ON ecureuil.JSONOBJECTS ((DATA->>'status'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_status ON ecureuil.JSONOBJECTS ((DATA->>'$status'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_recurrenceendtime ON ecureuil.JSONOBJECTS ((DATA->>'recurrenceendtime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_recurrenceendtime ON ecureuil.JSONOBJECTS ((DATA->>'$recurrenceendtime'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_template ON ecureuil.JSONOBJECTS (BUCKETNAME, (DATA->>'status'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_template ON ecureuil.JSONOBJECTS (DATA->>'$bucketname', (DATA->>'$status'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_username ON ecureuil.JSONOBJECTS (BUCKETNAME, (DATA->>'name'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_username ON ecureuil.JSONOBJECTS (DATA->>'$bucketname', (DATA->>'name'));")
 	if err != nil {
 		return err.Error()
 	}
@@ -1251,38 +1227,38 @@ func CreateDB(host, user, pass *string) string {
 		"createdonnetwork uuid;" +
 		"BEGIN " +
 		"if (TG_OP = 'DELETE') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.BUCKETNAME, OLD.ID, OLD.updatedby, TG_OP, OLD.data, OLD.data);" +
+		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.data->>'$bucketname', OLD.data->>'$id', OLD.data->>'$updatedby', TG_OP, OLD.data, OLD.data);" +
 		"data = OLD.data;" +
-		"ID = OLD.ID;" +
-		"bucketname = OLD.BUCKETNAME;" +
-		"createdby = OLD.CREATEDBY;" +
-		"updatedby = OLD.UPDATEDBY;" +
-		"createdtime = OLD.CREATEDTIME;" +
-		"updatedtime = OLD.UPDATEDTIME;" +
-		"createdonserver = OLD.CREATEDONSERVER;" +
-		"createdonnetwork = OLD.CREATEDONNETWORK;" +
+		"ID = OLD.data->>'$id';" +
+		"bucketname = OLD.data->>'$bucketname';" +
+		"createdby = OLD.data->>'$createdby';" +
+		"updatedby = OLD.data->>'$updatedby';" +
+		"createdtime = OLD.data->>'$createdtime';" +
+		"updatedtime = OLD.data->>'$updatedtime';" +
+		"createdonserver = OLD.data->>'$createdonserver';" +
+		"createdonnetwork = OLD.data->>'$createdonnetwork';" +
 		"ELSEIF (TG_OP = 'UPDATE') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.BUCKETNAME, OLD.ID, NEW.updatedby, TG_OP, OLD.data, NEW.data);" +
-		"ID = OLD.ID;" +
+		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.data->>'$bucketname', OLD.data->>'$id', NEW.data->>'$updatedby', TG_OP, OLD.data, NEW.data);" +
+		"ID = OLD.data->>'$id';" +
 		"data = NEW.data;" +
-		"bucketname = OLD.BUCKETNAME;" +
-		"createdby = OLD.CREATEDBY;" +
-		"updatedby = NEW.UPDATEDBY;" +
-		"createdtime = OLD.CREATEDTIME;" +
-		"updatedtime = NEW.UPDATEDTIME;" +
-		"createdonserver = OLD.CREATEDONSERVER;" +
-		"createdonnetwork = OLD.CREATEDONNETWORK;" +
+		"bucketname = OLD.data->>'$bucketname';" +
+		"createdby = OLD.data->>'$createdby';" +
+		"updatedby = NEW.data->>'$updatedby';" +
+		"createdtime = OLD.data->>'$createdby';" +
+		"updatedtime = NEW.data->>'$updatedby';" +
+		"createdonserver = OLD.data->>'$createdonserver';" +
+		"createdonnetwork = OLD.data->>'$createdonnetwork';" +
 		"ELSIF (TG_OP = 'INSERT') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, NEWDATA) VALUES (NOW(), NEW.BUCKETNAME, NEW.ID, NEW.updatedby, TG_OP, NEW.data);" +
-		"ID = NEW.ID;" +
+		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, NEWDATA) VALUES (NOW(), NEW.data->>'$bucketname', NEW.data->>'$id', NEW.data->>'$updatedby', TG_OP, NEW.data);" +
+		"ID = NEW.data->>'$id';" +
 		"data = NEW.data;" +
-		"bucketname = NEW.BUCKETNAME;" +
-		"createdby = NEW.CREATEDBY;" +
-		"updatedby = NEW.UPDATEDBY;" +
-		"createdtime = NEW.CREATEDTIME;" +
-		"updatedtime = NEW.UPDATEDTIME;" +
-		"createdonserver = NEW.CREATEDONSERVER;" +
-		"createdonnetwork = NEW.CREATEDONNETWORK;" +
+		"bucketname = NEW.data->>'$bucketname';" +
+		"createdby = NEW.data->>'$createdby';" +
+		"updatedby = NEW.data->>'$updatedby';" +
+		"createdtime = NEW.data->>'$createdtime';" +
+		"updatedtime = NEW.data->>'$updatedtime';" +
+		"createdonserver = NEW.data->>'$createdonserver';" +
+		"createdonnetwork = NEW.data->>'$createdonnetwork';" +
 		"END IF;" +
 		"notification = DATA || jsonb_build_object(" +
 		"'action', TG_OP," +
@@ -1342,27 +1318,6 @@ func CreateDB(host, user, pass *string) string {
 		"LANGUAGE plpgsql VOLATILE " +
 		"COST 100; ")
 
-	if err != nil {
-		return err.Error()
-	}
-
-	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.setjsonid() " +
-		"RETURNS trigger AS $$ " +
-		"DECLARE " +
-		" id text; " +
-		"BEGIN  " +
-		"   IF (TG_OP = 'INSERT') THEN  " +
-		" id = '\"' || NEW.ID::text || '\"'; " +
-		"NEW.data = NEW.data::jsonb - '$id' || ('{\"$id\":' || id || '}')::jsonb; " +
-		"ELSEIF (TG_OP = 'UPDATE') THEN " +
-		"IF (OLD.data->>'$id' is NULL AND NEW.data->>'$id' is NULL) THEN " +
-		"id = '\"' || OLD.ID::text || '\"'; " +
-		"NEW.data = NEW.data::jsonb - '$id' || ('{\"$id\":' || id || '}')::jsonb; " +
-		"END IF; " +
-		"END IF; " +
-		"RETURN NEW; " +
-		"END " +
-		"$$ LANGUAGE plpgsql; ")
 	if err != nil {
 		return err.Error()
 	}
@@ -1596,8 +1551,8 @@ func runMonitorStatusStartEnd() {
 		   IF status is not 2 and endtime is <= now and item is not recurrent
 		*/
 
-		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{status}', '2', true) "
-		query += "WHERE  DATA->>'status' IS NOT NULL AND CAST(DATA->>'status' AS INT) <> 2 AND CAST(DATA->>'endtime' AS BIGINT) <= $1 AND DATA->>'recurrence' is NULL;"
+		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true) "
+		query += "WHERE  DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND CAST(DATA->>'$endtime' AS BIGINT) <= $1 AND DATA->>'$recurrence' is NULL;"
 
 		_, err = sqldb.Exec(query, v)
 
@@ -1610,9 +1565,9 @@ func runMonitorStatusStartEnd() {
 		   IF status is not close, endtime as pass, item is recurrent but recurrence enddate has pass.
 		*/
 
-		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{status}', '2', true) "
-		query += "WHERE DATA->>'status' IS NOT NULL AND CAST(DATA->>'status' AS INT) <> 2 AND CAST(DATA->>'endtime' AS BIGINT) <= $1 AND DATA->>'recurrence' is NOT NULL AND " +
-			"CAST(DATA->'recurrence'->>'endbydate' AS BIGINT) <= $1;"
+		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true) "
+		query += "WHERE DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND CAST(DATA->>'$endtime' AS BIGINT) <= $1 AND DATA->>'$recurrence' is NOT NULL AND " +
+			"CAST(DATA->'$recurrence'->>'endbydate' AS BIGINT) <= $1;"
 
 		_, err = sqldb.Exec(query, v)
 
@@ -1625,8 +1580,8 @@ func runMonitorStatusStartEnd() {
 		   Search all items that Endtime is > now and there status is not Completed and recurrence <> 0 and recurrenceendtime > now
 		   		Calculate and set next starttime and endtime and set status to Pending
 		*/
-		query = "SELECT ID, CAST(DATA->>'recurrence' AS TEXT) AS recurrence FROM ecureuil.JSONOBJECTS " +
-			"WHERE CAST(DATA->>'endtime' AS BIGINT) < $1 AND DATA->>'status' IS NOT NULL AND CAST(DATA->>'status' AS INT) <> 2 AND DATA->>'recurrence' is NOT NULL AND CAST(DATA->'recurrence'->>'endbydate' AS BIGINT) > $1;"
+		query = "SELECT ID, CAST(DATA->>'$recurrence' AS TEXT) AS recurrence FROM ecureuil.JSONOBJECTS " +
+			"WHERE CAST(DATA->>'$endtime' AS BIGINT) < $1 AND DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND DATA->>'$recurrence' is NOT NULL AND CAST(DATA->'$recurrence'->>'endbydate' AS BIGINT) > $1;"
 
 		rows, err := sqldb.Query(query, v)
 
@@ -1672,7 +1627,7 @@ func runMonitorStatusStartEnd() {
 					logger.Trace("recurence completed!")
 
 					// there is no more recurrence before the recurrenceendtime
-					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{status}', '2', true)  WHERE ID = $1"
+					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true)  WHERE data->>'$id' = $1"
 					_, err = sqldb.Exec(query, id)
 					if err != nil {
 						logger.Error(err.Error())
@@ -1681,7 +1636,7 @@ func runMonitorStatusStartEnd() {
 				} else {
 
 					// first close item to generate email
-					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{status}', '2', true)  WHERE ID = $1"
+					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true)  WHERE data->>'$id' = $1"
 					_, err = sqldb.Exec(query, id)
 					if err != nil {
 						logger.Error(err.Error())
@@ -1689,7 +1644,7 @@ func runMonitorStatusStartEnd() {
 
 					// now change dates
 					query = `UPDATE ecureuil.JSONOBJECTS set DATA = DATA || '{"status": 0,"starttime":` +
-						strconv.FormatUint(start, 10) + `,"endtime":` + strconv.FormatUint(end, 10) + `}' WHERE ID = $1`
+						strconv.FormatUint(start, 10) + `,"endtime":` + strconv.FormatUint(end, 10) + `}' WHERE data->>'$id' = $1`
 
 					logger.Trace(query)
 
@@ -1712,8 +1667,8 @@ func runMonitorStatusStartEnd() {
 		/* Set status to 1 (active) for any items that have a now between starting and endtime and status is not equal to 1
 		 */
 
-		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{status}', '1', true) "
-		query += "WHERE DATA->>'status' IS NOT NULL AND CAST(DATA->>'status' AS INT) <> 1 AND $1 BETWEEN CAST(DATA->>'starttime' AS BIGINT) AND CAST(DATA->>'endtime' AS BIGINT);"
+		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '1', true) "
+		query += "WHERE DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 1 AND $1 BETWEEN CAST(DATA->>'$starttime' AS BIGINT) AND CAST(DATA->>'$endtime' AS BIGINT);"
 
 		_, err = sqldb.Exec(query, v)
 		if err != nil {
@@ -1724,8 +1679,8 @@ func runMonitorStatusStartEnd() {
 		   IF items have a starting time > now and status not equal to 0 and endtime is > now
 		*/
 
-		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{status}', '0', true) "
-		query += "WHERE CAST(DATA->>'status' AS INT) > 0 AND CAST(DATA->>'starttime' AS BIGINT) > $1 AND CAST(DATA->>'endtime' AS BIGINT) > $1;"
+		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '0', true) "
+		query += "WHERE CAST(DATA->>'$status' AS INT) > 0 AND CAST(DATA->>'$starttime' AS BIGINT) > $1 AND CAST(DATA->>'$endtime' AS BIGINT) > $1;"
 
 		_, err = sqldb.Exec(query, v)
 		if err != nil {

@@ -2,24 +2,12 @@ package models
 
 import "encoding/json"
 
-/*
-
-  Storm Tag Keywords:
-
-  	index		: index the field
-  	id			: field is the primary key
-  	unique		: index is a unique index
-  	inline  	: use to concatenate nested structs
-  	increment 	: auto increase the value for int's
-
-*/
-
 /*TUserGroup USERGROUP bucket contain information about groups, groups can have rights
 and are use for planned incident.  Each group can be selected to approved Planned Incident
 This bucket should not sync with other serverStat
 */
 type TUserGroup struct {
-	ID string `storm:"id,unique" json:"name"` // name of the group
+	ID string `json:"name"` // name of the group
 
 	Rights []string `json:"rights"` // user of this group are givens theses extra rights
 
@@ -41,7 +29,7 @@ This bucket should not sync with other server
 
 */
 type TUser struct {
-	ID string `storm:"id,unique" json:"name"` // user name
+	ID string `json:"name"` // user name
 
 	Contact string `json:"contact"` // how to contact this user.
 

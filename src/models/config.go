@@ -42,6 +42,7 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/Jeffail/gabs"
 	"github.com/antigloss/go/logger"
 	"github.com/asaskevich/govalidator"
 	uuid "github.com/satori/go.uuid"
@@ -63,7 +64,7 @@ This bucket should not sync with other serverStat
 
 */
 type TConfig struct {
-	ID string `storm:"id" json:"serverid"` // unique server id UUIL
+	ID string `json:"serverid"` // unique server id UUIL
 
 	NetworkID string `json:"networkid"` // what network this server is running on? from user networks list
 
@@ -125,7 +126,7 @@ var ConfigBUCKET = []byte("CONFIGURATION")
  */
 var Configuration TConfig
 
-/*GetConfiguration rights have already been checked
+/*GetConfiguration rights have already been checked configuration is from memory not what saved on SQL
  */
 func GetConfiguration(packet *MsgClientCmd) ([]byte, error) {
 
@@ -240,7 +241,7 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
 	// storing backup settings in the database.
 	//************************************************
 
-	err = saveConfig(&Configuration)
+	err = saveConfig(&Configuration, packet.Username)
 	if err != nil {
 		logger.Error(err.Error())
 		return PrepMessageForUser("Error while saving configuration:" + err.Error()), nil
@@ -256,7 +257,7 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
  */
 func ConfigurationINIT() {
 
-	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE ID = $1"
+	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE data->>'$id' = $1"
 
 	logger.Trace(sqlquery)
 
@@ -264,6 +265,7 @@ func ConfigurationINIT() {
 
 	if err != nil {
 
+		// unable to read configuration
 		logger.Error(err.Error())
 		panic(err.Error())
 
@@ -289,7 +291,7 @@ func ConfigurationINIT() {
 
 	logger.Trace("no configuration found creating a new one.")
 	setDefaultConfig()
-	err = saveConfig(&Configuration)
+	err = saveConfig(&Configuration, "system")
 	if err != nil {
 		logger.Error(err.Error())
 		panic("Unable to save configuration!")
@@ -317,50 +319,34 @@ func ValidateConfig(config *TConfig) error {
 		return errors.New("SMTP Port is not valid (0..65535)")
 	}
 
-	sqlquery := "select DATA FROM ecureuil.jsonobjects WHERE ID = $1"
-
-	logger.Trace(sqlquery)
-
-	rows, err := sqldb.Query(sqlquery, configIdValue)
-
-	if err != nil {
-
-		logger.Error(err.Error())
-		panic(err.Error())
-
-	}
-
-	if rows.Next() {
-
-		var data string
-		err = rows.Scan(&data)
-		if err != nil {
-			logger.Error(err.Error())
-			panic("bad configuraton!")
-		}
-
-		err = json.Unmarshal([]byte(data), &Configuration)
-		if err != nil {
-			logger.Error(err.Error())
-			panic("bad configuraton!")
-		}
-		logger.Trace("Configuration reed from SQL!")
-		return nil // good to go!
-	}
+	// configuration is valid
 	return nil
 }
 
-func saveConfig(configuration *TConfig) error {
+func saveConfig(configuration *TConfig, Username string) error {
 
 	newconfig, err := json.Marshal(Configuration)
 	if err != nil {
 		return err
 	}
 
-	sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (ID, DATA, bucketname, CREATEDBY, UPDATEDBY, CREATEDTIME, UPDATEDTIME, CREATEDONSERVER) " +
-		"VALUES ($1, $2, 'CONFIG', 'SYSTEM', 'SYSTEM',  $3, $3, $4) ON CONFLICT (ID) DO UPDATE SET DATA = $2 WHERE ecureuil.JSONOBJECTS.ID = $1;"
+	jsonParsed, err := gabs.ParseJSON([]byte(newconfig))
 
-	_, err = sqldb.Exec(sqlquery, configIdValue, string(newconfig), uint64(UnixUTCSecs()), Configuration.ID)
+	if err != nil {
+		logger.Error(err.Error())
+		return err
+	}
+
+	jsonParsed.SetP(Configuration.NetworkID, "$createdonnetwork")
+	jsonParsed.SetP(Configuration.ID, "$createdonserver")
+	jsonParsed.SetP(uint64(UnixUTCSecs()), "$createdtime")
+	jsonParsed.SetP(uint64(UnixUTCSecs()), "$updatedtime")
+	jsonParsed.SetP(Username, "$updatedby")
+
+	sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (DATA) " +
+		"VALUES ($2) ON CONFLICT (data->>'$id') DO UPDATE SET DATA = $2 WHERE ecureuil.JSONOBJECTS.data->>'$id' = $1;"
+
+	_, err = sqldb.Exec(sqlquery, configIdValue, jsonParsed.String())
 
 	return err
 }
@@ -386,7 +372,7 @@ func setDefaultConfig() {
 	Configuration.KeepLogForDays = 365
 	Configuration.MaxReadItemsFromDB = 1000000
 	Configuration.NetworkID = ""
-	Configuration.POSTGRESQLHost = "192.168.56.101"
+	Configuration.POSTGRESQLHost = "127.0.0.1"
 	Configuration.POSTGRESQLPass = "bitnami"
 	Configuration.POSTGRESQLPort = 5432
 	Configuration.POSTGRESQLUser = "ecureuiladmin"

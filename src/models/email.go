@@ -57,7 +57,7 @@ import (
 /*EmailAlertRequest contain the struct to change the email alert
  */
 type EmailAlertRequest struct {
-	ID          string   `storm:"id" json:"id"`
+	ID          string   `json:"id"`
 	Email       string   `json:"email"`
 	Buckets     []string `json:"buckets"`
 	DateRequest float64  `json:"daterequest"`
@@ -66,7 +66,7 @@ type EmailAlertRequest struct {
 /*EmailAlert contain the struct to save all the email alert
  */
 type EmailAlert struct {
-	Email   string   `storm:"id" json:"email"`
+	Email   string   `json:"email"`
 	Buckets []string `json:"buckets"`
 }
 
@@ -143,14 +143,6 @@ models.SendEmail([]string{"marc.gauthier3@gmail.com"}, "marc.gauthier3@gmail.com
 func SendEmail(to []string, from, subject, body string) {
 
 	logger.Trace("sending email")
-
-	// for debuging!
-	Configuration.SMTPEnabled = 1
-	Configuration.SMTPUser = "marc.gauthier3@gmail.com"
-	Configuration.SMTPPassword = "azy4azy4"
-	Configuration.SMTPIP = "smtp.gmail.com"
-	Configuration.SMTPPort = 587 //465 //587
-	Configuration.SMTPEmailfrom = "marc.gauthier3@gmail.com"
 
 	// check if email alert are enabled.
 	if Configuration.SMTPEnabled == 0 {
@@ -242,7 +234,7 @@ func GenerateEmailTemplate(bucketname string, jsonobject string) error {
 
 	// valid status are 0 pending, 1 active, 2 completed
 	// search and select template
-	query := "SELECT DATA->>'body' AS body, DATA->>'subject' AS subject FROM ecureuil.JSONOBJECTS WHERE BucketName = 'TEMPLATES' AND DATA->>'bucket' = $2 AND CAST(DATA->>'status' AS INT) = $1"
+	query := "SELECT DATA->>'body' AS body, DATA->>'subject' AS subject FROM ecureuil.JSONOBJECTS WHERE data->>'$bucketname' = 'TEMPLATES' AND DATA->>'bucket' = $2 AND CAST(DATA->>'$status' AS INT) = $1"
 
 	rows, err := sqldb.Query(query, status, bucketname)
 
