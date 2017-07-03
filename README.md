@@ -22,7 +22,6 @@
 - gocode https://github.com/nsf/gocode
 - Calendar https://github.com/EndFirstCorp/calendar
 - UUID https://github.com/satori/go.uuid
-- Gopsutil https://github.com/shirou/gopsutil
 - GJSON https://github.com/tidwall/gjson
 - GABS https://github.com/Jeffail/gabss
 
@@ -49,14 +48,12 @@
 			- [putconfig](#putconfig)
 			- [getusers](#getusers)
 			- [time](#time)
-			- [stats](#stats)
 
 		* Login Management
 			- [registerevent](#registerevent)
 			- [unregisterevent](#unregisterevent)
 			- [login](#login)
 			- [logout](#logout)
-			- [deletedefered](#deletedefered)
 			- [setemailalert](#setemailalert)
 			- [connect](#connect)
 		
@@ -91,7 +88,6 @@
 		- [onread](#onread)
 		- [onmessage](#onmessage)
 		- [onerror](#onerror)
-		- [onstats](#onstats)
 		- [ontime](#ontime)
 		- [onindexes](#onindexes)
 		- [onregisterevent](#onregisterevent)
@@ -128,7 +124,7 @@
 
 1. Install you favorite linux distro, create a folder and copy [ecureuil executable](http://github.com/owlso/ecureuil) in it.
 1. Install [Postgre sql database](https://www.postgresql.org/) version 9.6 or higher.
-1. Build the database: sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
+1. Build the database: sudo ./ecureuil -createdb -host=xxxxx -user=postgres -password=xxxxx 
 
 	**Where**
 	Host is the IP of your postgre database 
@@ -138,7 +134,7 @@ password for this user.
 	*Provided username and password are not going to be saved, ecureuil will generate a new username **ecureuiladmin** with a random 30 characters password, this password will be save locally into ecureuil.db this file also contain the access rights for each users and the system configuration.  Only the user running ecureuil and the system admin should have access to this file.*
 
 	At any point if you want to uninstall ecureuil from your postgres you can do so with the following command:
-sudo ./ecureuil -dropdb -host=192.168.56.101 -user=postgres -password=bitnami
+sudo ./ecureuil -dropdb -host=sql-ip -user=postgres -password=bitnami
 
 
 
@@ -196,17 +192,6 @@ ecureuil.connect("wss://yourwebsite.com/wss/");
 ecureuil.time();
 ```
 -	This function will contact the server and request the current time in UTC+0 in unix EPOCH.
-
-### **function stats();**
-```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
-... once connection is eastablished you can call
-...
-ecureuil.stats();
-```
--	This function will contact the server and request statistics about the ecureuil server.  It will return physical information about the hardware such as disk free space, cpu utilization and information about the local database that contain users rights.  You must be logged-on with a user that has admin rights in order for the server to accept your request.  The event **onstats** will be fired once the server reply with the statistics.  See the event **onstats** to view the structure of the statistics object return by the server.
-
 
 ### **function login(username, password);**
 ```go
@@ -634,21 +619,6 @@ ecureuil.onerror = function (msg) {
 
 
 
-### **Event onstats(server, database)**
-```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
-...
-ecureuil.onstats = function (server, database) {
-	    alert("Here some stats about the server: " + JSON.stringify(server));
-        alert("Here some stats about the database: " + JSON.stringify(database));
- }
-
-```
--	This event is generated when the backend server return the statistics you have requested.
--	The information regarding the database is for the local database managed by STORM/BoltDB not postgre SQL.
-
-
 ### **Event onindexes(server, database)**
 ```go
 var ecureuil = new Ecureuil();
@@ -730,7 +700,7 @@ var ecureuil = new Ecureuil();
 
 Ecureuil only support secure connections any transaction started as HTTP are redirected to a HTTPS connection.  The backend does not support unsecured websocket connections.
 
-Once the websocket connection is eastablished client can transmit their username and password.  Since the websocket is persistent the server will remember the username and password until the websocket connection is disconnected.  Their is no requirement to resend the username and password unless the connection need to be reastablished.  The Javascript ecureuil client **does not** store the password in memory, it is not recomanded to do so since your password would not be considered secured.
+Once the websocket connection is established client can transmit their username and password.  Since the websocket is persistent the server will remember the username and password until the websocket connection is disconnected.  There is no requirement to resend the username and password unless the connection need to be reastablished.  The Javascript ecureuil client **does not** store the password in memory, it is not recomanded to do so since your password would not be considered secured.
 
 Because the websocket is persistent there is no sessionID that can be stolen.
 
