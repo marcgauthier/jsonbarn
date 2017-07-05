@@ -22,7 +22,6 @@
 - gocode https://github.com/nsf/gocode
 - Calendar https://github.com/EndFirstCorp/calendar
 - UUID https://github.com/satori/go.uuid
-- GJSON https://github.com/tidwall/gjson
 - GABS https://github.com/Jeffail/gabss
 
 ## Download
