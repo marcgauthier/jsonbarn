@@ -6,7 +6,7 @@ ______________________________________________________________________________
 
 MIT License
 
-Copyright (c) 2014-2016 Marc Gauthier
+Copyright (c) 2014-2017 Marc Gauthier
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -82,8 +82,26 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+/*TNotification contain the structure to hold item received from postgresql
+ */
+type TNotification struct {
+	Bucketname       string          `json:"bucket"`
+	Action           string          `json:"action"`
+	CreatedBy        string          `json:"createdby"`
+	UpdatedBy        string          `json:"updatedby"`
+	CreatedTime      uint64          `json:"createdtime"`
+	UpdatedTime      uint64          `json:"updatedtime"`
+	CreatedonNetwork string          `json:"createdonnetwork"`
+	CreatedonServer  string          `json:"createdonserver"`
+	Data             json.RawMessage `json:"data"` // contain the JSON serialized object to be saved, it will be HTML Sanitized
+}
+
+/* Sql object to access the database
+ */
 var sqldb *sql.DB
 
+/* Connection string for the sql database
+ */
 var connstring = ""
 
 /*Open Function called at the start of the program to open the database.
@@ -107,7 +125,7 @@ func Open(host, username, password string) {
 		panic(err.Error())
 	}
 
-	/* Initialize database, create USERS and CONFIGURATION Buckets with  default values */
+	/* Initialize database, create CONFIGURATION with  default values if required */
 	ConfigurationINIT()
 
 	/* initialize users database make sure at least one admin user exists */
@@ -125,7 +143,7 @@ func Open(host, username, password string) {
 	/* monitor any object that have a starttime, endtime and recurrence and change their status automatically */
 	go runMonitorStatusStartEnd()
 
-	logger.Trace("Starting monitoring PostgreSQL...")
+	logger.Trace("Starting monitoring of changes in PostgreSQL...")
 
 	listener := pq.NewListener(connstring, 10*time.Second, time.Minute, reportProblem)
 	err = listener.Listen("events_ecureuil")
@@ -164,8 +182,12 @@ func DBLog(bucketname, username, action string, PreviousData, NewData []byte) {
 
 	id := "00000000-0000-0000-0000-000000000000"
 
+	// if no error while decoding use $id
 	if err == nil {
 		id = jsonParsed.Path("$id").String()
+		if id == "" {
+			id = "00000000-0000-0000-0000-000000000000"
+		}
 	}
 
 	_, err = sqldb.Exec("INSERT into ecureuil.LOGS (BUCKETNAME,USERNAME,ACTION,PREVIOUSDATA,NEWDATA,JSONID) VALUES ($1,$2,$3,$4,$5,$6)",
@@ -1580,8 +1602,9 @@ func runMonitorStatusStartEnd() {
 		   Search all items that Endtime is > now and there status is not Completed and recurrence <> 0 and recurrenceendtime > now
 		   		Calculate and set next starttime and endtime and set status to Pending
 		*/
-		query = "SELECT ID, CAST(DATA->>'$recurrence' AS TEXT) AS recurrence FROM ecureuil.JSONOBJECTS " +
-			"WHERE CAST(DATA->>'$endtime' AS BIGINT) < $1 AND DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND DATA->>'$recurrence' is NOT NULL AND CAST(DATA->'$recurrence'->>'endbydate' AS BIGINT) > $1;"
+		query = "SELECT data->>'$id', CAST(DATA->>'$recurrence' AS TEXT) AS recurrence FROM ecureuil.JSONOBJECTS " +
+			"WHERE CAST(DATA->>'$endtime' AS BIGINT) < $1 AND DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND DATA->>'$recurrence' is NOT NULL " +
+			"AND CAST(DATA->'$recurrence'->>'endbydate' AS BIGINT) > $1;"
 
 		rows, err := sqldb.Query(query, v)
 

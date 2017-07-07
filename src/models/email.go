@@ -49,9 +49,9 @@ import (
 	"net/smtp"
 	"strconv"
 
+	"github.com/Jeffail/gabs"
 	"github.com/antigloss/go/logger"
 	uuid "github.com/satori/go.uuid"
-	"github.com/tidwall/gjson"
 )
 
 /*EmailAlertRequest contain the struct to change the email alert
@@ -213,14 +213,17 @@ subject text document containing the html template for the subject.
 func GenerateEmailTemplate(bucketname string, jsonobject string) error {
 
 	// Extract status from the jsonobject we need it to select the correct template!
-	value := gjson.Get(jsonobject, "status")
-	status := value.Int()
 
-	// get data from this json that contain data + bucket + ...
-	data := gjson.Get(jsonobject, "")
+	jsonParsed, err := gabs.ParseJSON([]byte(jsonobject))
+	if err != nil {
+		return err
+	}
+	status, err := strconv.Atoi(jsonParsed.Path("$status").String())
 
-	items, ok := gjson.Parse(data.String()).Value().(map[string]interface{})
-	if !ok {
+	var items map[string]*json.RawMessage
+	err = json.Unmarshal([]byte(jsonobject), &items)
+
+	if err != nil {
 		// not a map
 		logger.Error("Unable to use GJSON to get data from item")
 		return nil

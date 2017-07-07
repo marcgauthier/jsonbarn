@@ -7,7 +7,7 @@ ______________________________________________________________________________
 
 MIT License
 
-Copyright (c) 2014-2016 Marc Gauthier
+Copyright (c) 2014-2017 Marc Gauthier
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,8 @@ ______________________________________________________________________________
 
 Revision:
 
-    01 Nov 2016 - Clean code, audit.
+  07 Jul 2017 - Clean code, audit.
+  01 Nov 2016 - Clean code, audit.
 
 ______________________________________________________________________________
 */
@@ -132,7 +133,7 @@ func GetConfiguration(packet *MsgClientCmd) ([]byte, error) {
 
 	logger.Trace("request read system configuration ")
 
-	// if access if not granted by default then check if the user has rights
+	// check if user as configuration-read right or admin
 	access, err := UserHasRight([]byte(packet.Username), []byte(packet.Password), "CONFIGURATION-read")
 	if err != nil {
 		logger.Warn(packet.Username + " read configuration error: " + err.Error())
@@ -207,7 +208,6 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
 
 	// overwrite header information.
 	//************************************************
-	oldconfig, err := json.Marshal(Configuration)
 
 	Configuration.NetworkID = item.NetworkID
 	Configuration.SMTPIP = item.SMTPIP
@@ -242,12 +242,11 @@ func PutConfiguration(packet *MsgClientCmd) ([]byte, error) {
 	//************************************************
 
 	err = saveConfig(&Configuration, packet.Username)
+
 	if err != nil {
 		logger.Error(err.Error())
 		return PrepMessageForUser("Error while saving configuration:" + err.Error()), nil
 	}
-
-	go DBLog("CONFIGURATION", packet.Username, "UPDATE", oldconfig, packet.Data)
 
 	return PrepMessageForUser("Configuration saved"), nil
 
@@ -337,6 +336,7 @@ func saveConfig(configuration *TConfig, Username string) error {
 		return err
 	}
 
+	jsonParsed.SetP(configIdValue, "$id")
 	jsonParsed.SetP(Configuration.NetworkID, "$createdonnetwork")
 	jsonParsed.SetP(Configuration.ID, "$createdonserver")
 	jsonParsed.SetP(uint64(UnixUTCSecs()), "$createdtime")
@@ -346,7 +346,12 @@ func saveConfig(configuration *TConfig, Username string) error {
 	sqlquery := "INSERT INTO ecureuil.JSONOBJECTS (DATA) " +
 		"VALUES ($2) ON CONFLICT (data->>'$id') DO UPDATE SET DATA = $2 WHERE ecureuil.JSONOBJECTS.data->>'$id' = $1;"
 
-	_, err = sqldb.Exec(sqlquery, configIdValue, jsonParsed.String())
+	sqlquery = "INSERT INTO ecureuil.JSONOBJECTS (DATA) VALUES ($1);"
+
+	logger.Trace(sqlquery)
+	logger.Trace(jsonParsed.String())
+
+	_, err = sqldb.Exec(sqlquery, jsonParsed.String())
 
 	return err
 }
