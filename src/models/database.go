@@ -1120,16 +1120,7 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE TABLE ecureuil.JSONOBJECTS (" +
-		"ID uuid NOT NULL primary key," +
-		"BUCKETNAME	varchar(64) NOT NULL," +
-		"CREATEDBY varchar(64) NOT NULL," +
-		"UPDATEDBY varchar(64) NOT NULL," +
-		"CREATEDTIME bigint NOT NULL," +
-		"UPDATEDTIME bigint NOT NULL," +
-		"CREATEDONNETWORK uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'," +
-		"CREATEDONSERVER uuid NOT NULL," +
-		"DATA jsonb);")
+	_, err = sqldb.Exec("CREATE TABLE ecureuil.JSONOBJECTS (DATA jsonb);")
 	if err != nil {
 		return err.Error()
 	}
@@ -1137,12 +1128,18 @@ func CreateDB(host, user, pass *string) string {
 	_, err = sqldb.Exec("CREATE TABLE ecureuil.DEFEREDCOMMAND (" +
 		"ID BIGSERIAL NOT NULL primary key," +
 		"RUNTIME BIGINT NOT NULL," +
-		"COMMAND text NOT NULL);") // contain JSON desiralized cmdaction
+		"COMMAND text NOT NULL," +
+		"jsonid uuid);") // contain JSON desiralized cmdaction
 	if err != nil {
 		return err.Error()
 	}
 
 	_, err = sqldb.Exec("CREATE INDEX DEFEREDCOMMAND_TIMEIDX ON ecureuil.DEFEREDCOMMAND (RUNTIME);")
+	if err != nil {
+		return err.Error()
+	}
+
+	_, err = sqldb.Exec("CREATE INDEX DEFEREDCOMMAND_jsonid ON ecureuil.DEFEREDCOMMAND (deferedcommand);")
 	if err != nil {
 		return err.Error()
 	}
@@ -1180,52 +1177,57 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_BUCKETNAME ON ecureuil.JSONOBJECTS (data->>'$bucketname');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$ID ON ecureuil.JSONOBJECTS (data->>'$id');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_CREATEDTIME ON ecureuil.JSONOBJECTS (data->>'$createdtime');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$BUCKETNAME ON ecureuil.JSONOBJECTS (data->>'$bucketname');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_UPDATEDTIME ON ecureuil.JSONOBJECTS (data->>'$updatedtime');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$endtime ON ecureuil.JSONOBJECTS ((DATA->>'$endtime'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_CREATEDBY ON ecureuil.JSONOBJECTS (data->>'$createdby');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$recurrence ON ecureuil.JSONOBJECTS ((DATA->>'$recurrence'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_UPDATEDBY ON ecureuil.JSONOBJECTS (data->>'$updatedby');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$recurrenceendtime ON ecureuil.JSONOBJECTS ((DATA->>'$recurrenceendtime'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_starttime ON ecureuil.JSONOBJECTS ((DATA->>'$starttime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$starttime ON ecureuil.JSONOBJECTS ((DATA->>'$starttime'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_endtime ON ecureuil.JSONOBJECTS ((DATA->>'$endtime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$status ON ecureuil.JSONOBJECTS ((DATA->>'$status'));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_recurrence ON ecureuil.JSONOBJECTS ((DATA->>'$recurrence'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$CREATEDTIME ON ecureuil.JSONOBJECTS (data->>'$createdtime');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_status ON ecureuil.JSONOBJECTS ((DATA->>'$status'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$UPDATEDTIME ON ecureuil.JSONOBJECTS (data->>'$updatedtime');")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_recurrenceendtime ON ecureuil.JSONOBJECTS ((DATA->>'$recurrenceendtime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$CREATEDBY ON ecureuil.JSONOBJECTS (data->>'$createdby');")
+	if err != nil {
+		return err.Error()
+	}
+
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$UPDATEDBY ON ecureuil.JSONOBJECTS (data->>'$updatedby');")
 	if err != nil {
 		return err.Error()
 	}
@@ -1240,124 +1242,83 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.logtrigger()" +
-		"RETURNS trigger AS $$" +
+	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.logtrigger() " +
+		"RETURNS trigger AS " +
+		"$BODY$ " +
 		"DECLARE " +
-		"data jsonb;" +
-		"notification jsonb;" +
-		"bucketname text;" +
-		"createdby text;" +
-		"updatedby text;" +
-		"createdtime bigint;" +
-		"updatedtime bigint;" +
-		"ID uuid;" +
-		"createdonserver uuid;" +
-		"createdonnetwork uuid;" +
+		"notification jsonb; " +
 		"BEGIN " +
 		"if (TG_OP = 'DELETE') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.data->>'$bucketname', OLD.data->>'$id', OLD.data->>'$updatedby', TG_OP, OLD.data, OLD.data);" +
-		"data = OLD.data;" +
-		"ID = OLD.data->>'$id';" +
-		"bucketname = OLD.data->>'$bucketname';" +
-		"createdby = OLD.data->>'$createdby';" +
-		"updatedby = OLD.data->>'$updatedby';" +
-		"createdtime = OLD.data->>'$createdtime';" +
-		"updatedtime = OLD.data->>'$updatedtime';" +
-		"createdonserver = OLD.data->>'$createdonserver';" +
-		"createdonnetwork = OLD.data->>'$createdonnetwork';" +
-		"ELSEIF (TG_OP = 'UPDATE') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, PREVIOUSDATA, NEWDATA) VALUES (NOW(), OLD.data->>'$bucketname', OLD.data->>'$id', NEW.data->>'$updatedby', TG_OP, OLD.data, NEW.data);" +
-		"ID = OLD.data->>'$id';" +
-		"data = NEW.data;" +
-		"bucketname = OLD.data->>'$bucketname';" +
-		"createdby = OLD.data->>'$createdby';" +
-		"updatedby = NEW.data->>'$updatedby';" +
-		"createdtime = OLD.data->>'$createdby';" +
-		"updatedtime = NEW.data->>'$updatedby';" +
-		"createdonserver = OLD.data->>'$createdonserver';" +
-		"createdonnetwork = OLD.data->>'$createdonnetwork';" +
-		"ELSIF (TG_OP = 'INSERT') THEN " +
-		"INSERT into ecureuil.LOGS (TIMEOFACTION, BUCKETNAME, JSONID, USERNAME, ACTION, NEWDATA) VALUES (NOW(), NEW.data->>'$bucketname', NEW.data->>'$id', NEW.data->>'$updatedby', TG_OP, NEW.data);" +
-		"ID = NEW.data->>'$id';" +
-		"data = NEW.data;" +
-		"bucketname = NEW.data->>'$bucketname';" +
-		"createdby = NEW.data->>'$createdby';" +
-		"updatedby = NEW.data->>'$updatedby';" +
-		"createdtime = NEW.data->>'$createdtime';" +
-		"updatedtime = NEW.data->>'$updatedtime';" +
-		"createdonserver = NEW.data->>'$createdonserver';" +
-		"createdonnetwork = NEW.data->>'$createdonnetwork';" +
-		"END IF;" +
-		"notification = DATA || jsonb_build_object(" +
-		"'action', TG_OP," +
-		"'$id', ID," +
-		"'$bucketname', BUCKETNAME," +
-		"'$createdby', CREATEDBY," +
-		"'$updatedby', UPDATEDBY," +
-		"'$createdtime', CREATEDTIME," +
-		"'$updatedtime', UPDATEDTIME," +
-		"'$createdonnetwork', CREATEDONNETWORK," +
-		"'$createdonserver', CREATEDONSERVER);" +
-		"PERFORM pg_notify('events_ecureuil',notification::text);" +
-		"RETURN NULL;" +
-		"END;$$ LANGUAGE plpgsql;")
+		"	notification = OLD.data || jsonb_build_object('action', TG_OP); " +
+		"	insert into ecureuil.logs (timeofaction, jsonid, username, action, previousdata, bucketname)  " +
+		"	VALUES (NOW(), CAST(OLD.data->>'$id' AS UUID), OLD.data->>'$updatedby', TG_OP, OLD.data, OLD.data->>'$bucketname'); " +
+		"	PERFORM pg_notify('events_ecureuil',notification::text); " +
+		"ELSIF (TG_OP = 'UPDATE') THEN  " +
+		"	notification = NEW.data|| jsonb_build_object('action', TG_OP); " +
+		"	insert into ecureuil.logs (timeofaction, jsonid, username, action, previousdata, newdata, bucketname)  " +
+		"	VALUES (NOW(), CAST(NEW.data->>'$id' AS UUID), NEW.data->>'$updatedby', TG_OP, OLD.data, NEW.data, NEW.data->>'$bucketname'); " +
+		"	PERFORM pg_notify('events_ecureuil',notification::text); " +
+		" ELSIF (TG_OP = 'INSERT') THEN  " +
+		"	notification = NEW.data || jsonb_build_object('action', TG_OP); " +
+		"	insert into ecureuil.logs (timeofaction, jsonid, username, action,  newdata, bucketname)  " +
+		"	VALUES (NOW(), CAST(NEW.data->>'$id' AS UUID), NEW.data->>'$updatedby', TG_OP, NEW.data, NEW.data->>'$bucketname'); " +
+		"	PERFORM pg_notify('events_ecureuil',notification::text); " +
+		"END IF; " +
+		"RETURN NULL; " +
+		"END; " +
+		"$BODY$ " +
+		"LANGUAGE plpgsql VOLATILE ")
 
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.useraccess(username text, rightname text) " +
-		"RETURNS integer AS " +
+	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.useraccess( " +
+		"    username text, " +
+		"    rightname text) " +
+		"  RETURNS integer AS " +
 		"$BODY$ " +
 		"DECLARE " +
-		"RightID uuid; " +
-		"adminRightID uuid; " +
-		"HasRight uuid; " +
-		"json_object json; " +
-		"item json; " +
-		"itemid uuid; " +
-		"v_output text[]; " +
-		"usergroups jsonb; " +
-		"m text[]; " +
+		"	RightID uuid; " +
+		"	adminRightID uuid; " +
+		"	HasRight uuid; " +
+		"	json_object json; " +
+		"	item json; " +
+		"	itemid uuid; " +
+		"	v_output text[]; " +
+		"	usergroups jsonb; " +
+		"	m text[]; " +
 		"BEGIN " +
-		"select id from ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = 'admin' into adminRightID; " +
-		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE bucketname = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"' || adminRightID || '\" ] }')::jsonb) THEN " +
-		"RETURN 1; " +
-		"ELSE " +
-		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE bucketname = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"admin\" ] }')::jsonb) THEN " +
-		"	RETURN 1; " +
-		"END IF; " +
-		"END IF; " +
-		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = rightname) THEN " +
-		"select id from ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = rightname into RightID; " +
-		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE bucketname = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb) THEN " +
-		"RETURN 1; " +
-		"END IF; " +
-		"FOR itemid IN SELECT ID FROM ecureuil.jsonobjects WHERE bucketname = 'USERGROUPS' AND data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb " +
-		"LOOP " +
-		"IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where bucketname = 'USERS' and data->>'name' = username AND data @> ('{ \"group\": [\"' || itemid || '\"]}')::jsonb) THEN " +
-		"return 1; -- user has a group that have the right " +
-		"END IF; " +
-		"END LOOP; " +
-		"END IF; " +
-		"RETURN 0; " +
+		"select data->>'$id' from ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = 'admin' into adminRightID; " +
+		"	IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"' || adminRightID || '\" ] }')::jsonb) THEN " +
+		"		RETURN 1; " +
+		"	ELSE " +
+		"		IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"admin\" ] }')::jsonb) THEN " +
+		"			RETURN 1; " +
+		"		END IF; " +
+		"	END IF; " +
+		"	IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = rightname) THEN " +
+		"		select data->>'$id' from ecureuil.jsonobjects where data->>'$bucketname' = 'USERRIGHTS' and data->>'name' = rightname into RightID; " +
+		"		IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = 'USERS' AND data->>'name' = username AND  data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb) THEN " +
+		"			RETURN 1; " +
+		"		END IF; " +
+		"		FOR itemid IN SELECT ID FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = 'USERGROUPS' AND data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb " +
+		"		LOOP " +
+		"			IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where data->>'$bucketname' = 'USERS' and data->>'name' = username AND data @> ('{ \"group\": [\"' || itemid || '\"]}')::jsonb) THEN " +
+		"				return 1; -- user has a group that have the right " +
+		"			END IF; " +
+		"		END LOOP; " +
+		"	END IF; " +
+		"	RETURN 0; " +
 		"END; " +
 		"$BODY$ " +
-		"LANGUAGE plpgsql VOLATILE " +
-		"COST 100; ")
+		"  LANGUAGE plpgsql VOLATILE")
 
 	if err != nil {
 		return err.Error()
 	}
 
 	s = "ALTER FUNCTION ecureuil.logtrigger() OWNER TO postgres;"
-	_, err = sqldb.Exec(s)
-	if err != nil {
-		fmt.Println(s)
-		return err.Error()
-	}
-
-	s = "CREATE TRIGGER updatejsonId BEFORE INSERT OR UPDATE ON ecureuil.JSONOBJECTS FOR EACH ROW EXECUTE PROCEDURE ecureuil.setjsonid();"
 	_, err = sqldb.Exec(s)
 	if err != nil {
 		fmt.Println(s)
