@@ -821,8 +821,14 @@ func DBUpdate(packet *MsgClientCmd, defered bool) ([]byte, error) {
 			}
 		}
 
-		sqlquery := "UPDATE ecureuil.JSONOBJECTS set data->>'$bucketname' = $5, data->>'$updatedby' = $1, data->>'$updatedtime' = $2, data = $3 WHERE data->>'$id' = $4"
-		_, err = sqldb.Exec(sqlquery, packet.Username, uint64(UnixUTCSecs()), SanitizeJSONStrHTML(string(packet.Data)), packet.Key, packet.Bucketname)
+		if jsonParsed.Path("$bucketname").String() == "" {
+			jsonParsed.SetP(packet.Bucketname, "$bucketname")
+		}
+		jsonParsed.SetP(packet.Username, "$updatedby")
+		jsonParsed.SetP(uint64(UnixUTCSecs()), "$updatedtime")
+
+		sqlquery := "UPDATE ecureuil.JSONOBJECTS set data = $1 WHERE data->>'$id' = $2"
+		_, err = sqldb.Exec(sqlquery, SanitizeJSONStrHTML(jsonParsed.String()), packet.Key)
 
 		if err != nil {
 			logger.Trace(err.Error())
