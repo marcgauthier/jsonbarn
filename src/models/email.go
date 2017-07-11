@@ -4,8 +4,8 @@ This file contain miscillaneous functions helper.
 
 ______________________________________________________________________________
 
- OWLSO - Overwatch Link and Service Observer.
-______________________________________________________________________________
+ Ecureuil - Web framework for real-time javascript app.
+_____________________________________________________________________________
 
 MIT License
 

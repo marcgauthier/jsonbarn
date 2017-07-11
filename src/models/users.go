@@ -1,12 +1,9 @@
 /*Package models - users.go
 
-This file contain functions to control the USERS bucket, user Bucket contain
-the list of username and password but most important the rights that these
-users have.  The rights are defined as follow BUCKETNAME-action.
 ______________________________________________________________________________
 
- OWLSO - Overwatch Link and Service Observer.
-______________________________________________________________________________
+ Ecureuil - Web framework for real-time javascript app.
+_____________________________________________________________________________
 
 MIT License
 

@@ -6,8 +6,8 @@ message that need to be broadcasted to all connected users.
 
 ______________________________________________________________________________
 
- OWLSO - Overwatch Link and Service Observer.
-______________________________________________________________________________
+ Ecureuil - Web framework for real-time javascript app.
+_____________________________________________________________________________
 
 MIT License
 

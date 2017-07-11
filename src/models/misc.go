@@ -1,15 +1,14 @@
 /*Package models - misc.go
 
 This file contain miscillaneous functions helper.
-
 ______________________________________________________________________________
 
- OWLSO - Overwatch Link and Service Observer.
-______________________________________________________________________________
+ Ecureuil - Web framework for real-time javascript app.
+_____________________________________________________________________________
 
 MIT License
 
-Copyright (c) 2014-2016 Marc Gauthier
+Copyright (c) 2014-2017 Marc Gauthier
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -5,6 +5,12 @@ This file contain functions to control the CONFIGURATION bucket,
 this Bucket contain options and settings for the program.
 ______________________________________________________________________________
 
+______________________________________________________________________________
+
+ Ecureuil - Web framework for real-time javascript app.
+_____________________________________________________________________________
+
+
 MIT License
 
 Copyright (c) 2014-2017 Marc Gauthier
