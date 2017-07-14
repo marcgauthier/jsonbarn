@@ -804,7 +804,7 @@ func DBUpdate(packet *MsgClientCmd, defered bool) ([]byte, error) {
 		*/
 
 		jsonParsed, err := gabs.ParseJSON(packet.Data)
-		statusexists := jsonParsed.ExistsP("itemstatus") || jsonParsed.ExistsP("status")
+		statusexists := jsonParsed.ExistsP("$itemstatus") || jsonParsed.ExistsP("$status")
 
 		if statusexists {
 			// confirm user has admin or statuschange
@@ -1139,20 +1139,20 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX DEFEREDCOMMAND_jsonid ON ecureuil.DEFEREDCOMMAND (deferedcommand);")
+	_, err = sqldb.Exec("CREATE INDEX DEFEREDCOMMAND_jsonid ON ecureuil.DEFEREDCOMMAND (jsonid);")
 	if err != nil {
 		return err.Error()
 	}
 
 	_, err = sqldb.Exec("CREATE TABLE ecureuil.LOGS (" +
 		"ID bigserial NOT NULL primary key," +
-		"TIMEOFACTION timestamptz NOT NULL DEFAULT NOW()," +
-		"JSONID uuid NOT NULL," +
-		"USERNAME varchar(64) NOT NULL," +
+		"TIMEOFACTION timestamptz DEFAULT NOW()," +
+		"JSONID uuid," +
+		"USERNAME varchar(64)," +
 		"BUCKETNAME varchar(64)," +
-		"ACTION varchar(16) NOT NULL," +
+		"ACTION varchar(16)," +
 		"PREVIOUSDATA jsonb," +
-		"NEWDATA jsonb NOT NULL);")
+		"NEWDATA jsonb);")
 	if err != nil {
 		return err.Error()
 	}
@@ -1177,67 +1177,73 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$ID ON ecureuil.JSONOBJECTS (data->>'$id');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$ID ON ecureuil.JSONOBJECTS (CAST(data->>'$id' AS uuid));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$BUCKETNAME ON ecureuil.JSONOBJECTS (data->>'$bucketname');")
+	fmt.Println("HEELO2222")
+
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$BUCKETNAME ON ecureuil.JSONOBJECTS (CAST(data->>'$bucketname' AS text));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$endtime ON ecureuil.JSONOBJECTS ((DATA->>'$endtime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$endtime ON ecureuil.JSONOBJECTS (CAST(DATA->>'$endtime' AS text) );")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$recurrence ON ecureuil.JSONOBJECTS ((DATA->>'$recurrence'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$recurrence ON ecureuil.JSONOBJECTS (CAST(DATA->>'$recurrence' AS text));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$recurrenceendtime ON ecureuil.JSONOBJECTS ((DATA->>'$recurrenceendtime'));")
+	fmt.Println("HEELO3333")
+
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$recurrenceendtime ON ecureuil.JSONOBJECTS (CAST(DATA->>'$recurrenceendtime' AS TExt));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$starttime ON ecureuil.JSONOBJECTS ((DATA->>'$starttime'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$starttime ON ecureuil.JSONOBJECTS (CAST(DATA->>'$starttime' AS BIGINT));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$status ON ecureuil.JSONOBJECTS ((DATA->>'$status'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$status ON ecureuil.JSONOBJECTS (CAST(DATA->>'$status' AS INTEGER));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$CREATEDTIME ON ecureuil.JSONOBJECTS (data->>'$createdtime');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$CREATEDTIME ON ecureuil.JSONOBJECTS (CAST(data->>'$createdtime' AS BIGINT));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$UPDATEDTIME ON ecureuil.JSONOBJECTS (data->>'$updatedtime');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$UPDATEDTIME ON ecureuil.JSONOBJECTS (CAST(data->>'$updatedtime' AS BIGINT));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$CREATEDBY ON ecureuil.JSONOBJECTS (data->>'$createdby');")
+	fmt.Println("HEEL4444")
+
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$CREATEDBY ON ecureuil.JSONOBJECTS (CAST(data->>'$createdby' AS TEXT));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$UPDATEDBY ON ecureuil.JSONOBJECTS (data->>'$updatedby');")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_$UPDATEDBY ON ecureuil.JSONOBJECTS (CAST(data->>'$updatedby' AS TEXT));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_template ON ecureuil.JSONOBJECTS (DATA->>'$bucketname', (DATA->>'$status'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_template ON ecureuil.JSONOBJECTS (CAST(DATA->>'$bucketname' AS TEXT), CAST(DATA->>'$status' AS INTEGER));")
 	if err != nil {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_username ON ecureuil.JSONOBJECTS (DATA->>'$bucketname', (DATA->>'name'));")
+	_, err = sqldb.Exec("CREATE INDEX JSONOBJECTS_username ON ecureuil.JSONOBJECTS (CAST(DATA->>'$bucketname' AS TEXT), CAST(DATA->>'name' AS TEXT));")
 	if err != nil {
 		return err.Error()
 	}
@@ -1273,7 +1279,7 @@ func CreateDB(host, user, pass *string) string {
 		return err.Error()
 	}
 
-	_, err = sqldb.Exec("CREATE OR REPLACE FUNCTION ecureuil.useraccess( " +
+	sqlquery := "CREATE OR REPLACE FUNCTION ecureuil.useraccess( " +
 		"    username text, " +
 		"    rightname text) " +
 		"  RETURNS integer AS " +
@@ -1305,16 +1311,19 @@ func CreateDB(host, user, pass *string) string {
 		"		FOR itemid IN SELECT ID FROM ecureuil.jsonobjects WHERE data->>'$bucketname' = 'USERGROUPS' AND data @> ('{ \"rights\": [ \"' || RightID || '\" ] }')::jsonb " +
 		"		LOOP " +
 		"			IF EXISTS (SELECT 1 FROM ecureuil.jsonobjects where data->>'$bucketname' = 'USERS' and data->>'name' = username AND data @> ('{ \"group\": [\"' || itemid || '\"]}')::jsonb) THEN " +
-		"				return 1; -- user has a group that have the right " +
+		"				return 1; " +
 		"			END IF; " +
 		"		END LOOP; " +
 		"	END IF; " +
 		"	RETURN 0; " +
 		"END; " +
 		"$BODY$ " +
-		"  LANGUAGE plpgsql VOLATILE")
+		"  LANGUAGE plpgsql VOLATILE"
+
+	_, err = sqldb.Exec(sqlquery)
 
 	if err != nil {
+		fmt.Println(sqlquery)
 		return err.Error()
 	}
 
@@ -1473,6 +1482,7 @@ func runDeferedEvents() {
 }
 
 /*
+This function will change status automatically for items that have $autostatus = true
 
 Check for recurrence of item to automatically change their status.
 
@@ -1508,6 +1518,7 @@ Search all items that now is between Starttime and Endtime and their status is n
 Search all items that Starttime is < now and their status is not pending
 	- set status to pending
 
+
 */
 
 func runMonitorStatusStartEnd() {
@@ -1536,12 +1547,22 @@ func runMonitorStatusStartEnd() {
 
 		v := uint64(UnixUTCSecs())
 
+		/* we can't have item with data->>$status NULL because this could occur make sure we set it for any item that does not have it. */
+		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '0', true) where data->>'$status' is NULL"
+		_, err = sqldb.Exec(query)
+
+		if err != nil {
+			logger.Error(query)
+			logger.Error(err.Error())
+		}
+
 		/* Set Status to 2 (close)
 		   IF status is not 2 and endtime is <= now and item is not recurrent
 		*/
 
 		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true) "
-		query += "WHERE  DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND CAST(DATA->>'$endtime' AS BIGINT) <= $1 AND DATA->>'$recurrence' is NULL;"
+		query += "WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND CAST(DATA->>'$status' AS INT) <> 2 AND "
+		query += "CAST(DATA->>'$endtime' AS BIGINT) <= $1 AND DATA->>'$recurrence' is NULL;"
 
 		_, err = sqldb.Exec(query, v)
 
@@ -1555,7 +1576,7 @@ func runMonitorStatusStartEnd() {
 		*/
 
 		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true) "
-		query += "WHERE DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND CAST(DATA->>'$endtime' AS BIGINT) <= $1 AND DATA->>'$recurrence' is NOT NULL AND " +
+		query += "WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND CAST(DATA->>'$status' AS INT) <> 2 AND CAST(DATA->>'$endtime' AS BIGINT) <= $1 AND DATA->>'$recurrence' is NOT NULL AND " +
 			"CAST(DATA->'$recurrence'->>'endbydate' AS BIGINT) <= $1;"
 
 		_, err = sqldb.Exec(query, v)
@@ -1570,7 +1591,7 @@ func runMonitorStatusStartEnd() {
 		   		Calculate and set next starttime and endtime and set status to Pending
 		*/
 		query = "SELECT data->>'$id', CAST(DATA->>'$recurrence' AS TEXT) AS recurrence FROM ecureuil.JSONOBJECTS " +
-			"WHERE CAST(DATA->>'$endtime' AS BIGINT) < $1 AND DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 2 AND DATA->>'$recurrence' is NOT NULL " +
+			"WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND CAST(DATA->>'$endtime' AS BIGINT) < $1 AND CAST(DATA->>'$status' AS INT) <> 2 AND DATA->>'$recurrence' is NOT NULL " +
 			"AND CAST(DATA->'$recurrence'->>'endbydate' AS BIGINT) > $1;"
 
 		rows, err := sqldb.Query(query, v)
@@ -1617,7 +1638,7 @@ func runMonitorStatusStartEnd() {
 					logger.Trace("recurence completed!")
 
 					// there is no more recurrence before the recurrenceendtime
-					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true)  WHERE data->>'$id' = $1"
+					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true)  WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND data->>'$id' = $1"
 					_, err = sqldb.Exec(query, id)
 					if err != nil {
 						logger.Error(err.Error())
@@ -1626,7 +1647,7 @@ func runMonitorStatusStartEnd() {
 				} else {
 
 					// first close item to generate email
-					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true)  WHERE data->>'$id' = $1"
+					query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '2', true)  WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND data->>'$id' = $1"
 					_, err = sqldb.Exec(query, id)
 					if err != nil {
 						logger.Error(err.Error())
@@ -1634,7 +1655,7 @@ func runMonitorStatusStartEnd() {
 
 					// now change dates
 					query = `UPDATE ecureuil.JSONOBJECTS set DATA = DATA || '{"status": 0,"starttime":` +
-						strconv.FormatUint(start, 10) + `,"endtime":` + strconv.FormatUint(end, 10) + `}' WHERE data->>'$id' = $1`
+						strconv.FormatUint(start, 10) + `,"endtime":` + strconv.FormatUint(end, 10) + `}' WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND data->>'$id' = $1`
 
 					logger.Trace(query)
 
@@ -1658,7 +1679,7 @@ func runMonitorStatusStartEnd() {
 		 */
 
 		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '1', true) "
-		query += "WHERE DATA->>'$status' IS NOT NULL AND CAST(DATA->>'$status' AS INT) <> 1 AND $1 BETWEEN CAST(DATA->>'$starttime' AS BIGINT) AND CAST(DATA->>'$endtime' AS BIGINT);"
+		query += "WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND CAST(DATA->>'$status' AS INT) <> 1 AND $1 BETWEEN CAST(DATA->>'$starttime' AS BIGINT) AND CAST(DATA->>'$endtime' AS BIGINT);"
 
 		_, err = sqldb.Exec(query, v)
 		if err != nil {
@@ -1670,7 +1691,7 @@ func runMonitorStatusStartEnd() {
 		*/
 
 		query = "UPDATE ecureuil.JSONOBJECTS set DATA = jsonb_set(data, '{$status}', '0', true) "
-		query += "WHERE CAST(DATA->>'$status' AS INT) > 0 AND CAST(DATA->>'$starttime' AS BIGINT) > $1 AND CAST(DATA->>'$endtime' AS BIGINT) > $1;"
+		query += "WHERE CAST(DATA->>'$autostatus' AS BOOL) = TRUE AND CAST(DATA->>'$status' AS INT) > 0 AND CAST(DATA->>'$starttime' AS BIGINT) > $1 AND CAST(DATA->>'$endtime' AS BIGINT) > $1;"
 
 		_, err = sqldb.Exec(query, v)
 		if err != nil {
@@ -1720,7 +1741,7 @@ func waitForNotification(l *pq.Listener) error {
 			return nil
 
 		case <-time.After(90 * time.Second):
-			logger.Trace("Received no events for 90 seconds, checking connection")
+			logger.Trace("No events for 90 seconds, checking connection executing ping!")
 			go func() {
 				l.Ping()
 			}()
