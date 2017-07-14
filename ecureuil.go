@@ -1,12 +1,12 @@
 /*
 ______________________________________________________________________________
 
- OWLSO - Overwatch Link and Service Observer.
-______________________________________________________________________________
+ Ecureuil - Web framework for real-time javascript app.
+_____________________________________________________________________________
 
 MIT License
 
-Copyright (c) 2014-2016 Marc Gauthier
+Copyright (c) 2014-2017 Marc Gauthier
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@ SOFTWARE.
 ______________________________________________________________________________
 
 
-This file contain the startup code for the backend server of OWLSO.
+This file contain the startup code for the backend server of ECUREUIL.
 
 
 
@@ -120,7 +120,7 @@ func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-	Handle all request for a static files see previous comment.
+	Handle all request for a static files see previous comment for appHandler.
 
 */
 
@@ -132,12 +132,12 @@ func myHandler(w http.ResponseWriter, r *http.Request) (int, error) {
 
 	if r.Method == "GET" {
 
-		// if home page redirect to index.html
+		// if home page is root redirect to index.html
 
 		if r.URL.Path == "/" {
 			filepath = "/index.html"
 
-		} else if r.URL.Path == "/confirm/" {
+		} else if r.URL.Path == "/confirm/" { // use for email alert confirmation
 
 			// https://"+Configuration.Addr+"/confirm/?id="+Info.ID)"
 			logger.Trace("Receive Email Alert confirmation, verifying")
@@ -164,7 +164,8 @@ func myHandler(w http.ResponseWriter, r *http.Request) (int, error) {
 			filepath = r.URL.Path
 		}
 
-		// Extract the file from the database if present.
+		// Extract the file from the database if present, GetStaticFile will use
+		// cache is available and return file content into a buffer.  see static-files.go
 
 		buffer, ext, err := models.GetStaticFile(filepath)
 
@@ -197,7 +198,8 @@ func myHandler(w http.ResponseWriter, r *http.Request) (int, error) {
 
 /*
 
-	Main function of the program
+	If incoming request is for http redirect to same url but with https
+	Ecureuil framework does not serve file over HTTP only HTTPS
 
 */
 
@@ -209,11 +211,26 @@ func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
 		http.StatusMovedPermanently)
 }
 
-//sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
-//sudo ./ecureuil -dropdb -host=192.168.56.101 -user=postgres -password=bitnami
-/// -trace to show trace!
+/* main program function check for command line parameter and run program as requested.
+
+example:
+
+	Create an SQL database
+		sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
+
+	Remove an SQL database
+		sudo ./ecureuil -dropdb -host=192.168.56.101 -user=postgres -password=bitnami
+
+	Start Ecureuil server
+		sudo ./ecureuil -host=192.168.56.101 -user=postgres -password=bitnami
+
+
+	-trace will output more information on stdout
+*/
 
 func main() {
+
+	// get command line flags
 
 	user := flag.String("user", "", "postgresql user name with admin rights")
 	password := flag.String("password", "", "postgresql user password")
@@ -227,12 +244,14 @@ func main() {
 	if *boolPtr {
 		result := models.CreateDB(host, user, password)
 		fmt.Println(result)
+		os.Exit(0)
 		return
 	}
 
 	if *boolPtr2 {
 		result := models.DropDB(host, user, password)
 		fmt.Println(result)
+		os.Exit(0)
 		return
 	}
 
@@ -277,8 +296,6 @@ func main() {
 		}
 	}
 
-	//fmt.Println("Host=" + *host + " username=" + *user)
-
 	// create folder for storing log files if it does not exists.
 	path := "./log"
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -288,29 +305,24 @@ func main() {
 	// logger options are Trace, Info, Warn, Error, Panic and Abort
 	// logs are saved into the log/ folder
 
-	if *boolPtr2 {
-		result := models.DropDB(host, user, password)
-		fmt.Println(result)
-		return
-	}
-
 	logger.Init("./log", // specify the directory to save the logfiles
-		400,       // maximum logfiles allowed under the specified log directory
+		300,       // maximum logfiles allowed under the specified log directory
 		20,        // number of logfiles to delete when number of logfiles exceeds the configured limit
-		100,       // maximum size of a logfile in MB
+		1,         // maximum size of a logfile in MB
 		showTrace) // whether logs with Trace level are written down
 
-	logger.SetLogToConsole(true) // show all log on the monitor
+	logger.SetLogToConsole(true) // show all log on the monitor and save to disk
 
+	// Initialize file cache for static file (static-files.go)
 	models.InitFileCache()
 
 	/* OPEN database, initialize and create default values if required */
 	models.Open(*host, *user, *password)
 	defer models.Close()
 
-	logger.Trace("Openning Database Completed!")
+	logger.Trace("Database opened!")
 
-	/* start the hub that broadcast messages on Websocket connections */
+	/* start the hub that broadcast messages to all Websocket connections */
 	logger.Trace("Starting the HUB go routine")
 	models.HubStart()
 
@@ -320,6 +332,7 @@ func main() {
 	r.PathPrefix("/").Handler(appHandler(myHandler)) // any other request check for static files
 	http.Handle("/", r)
 
+	// check for SSL certificates
 	/* if server.crt or server.key does not exists create the files!! */
 
 	CertificateExists, _ := models.FileExists("server.crt")
@@ -329,25 +342,25 @@ func main() {
 	if !CertificateExists || !KeyExists {
 
 		logger.Panic("SSL certificates don't exists (server.crt and server.key...)")
-		panic("Unable to create certificates, please provide server.crt and server.key.")
 
+		os.Exit(0)
 	}
 
 	/*
-		Start the webserver and respond to HTTPS request only
+		Start the webserver and respond to HTTPS request only listen on all interfaces.
 	*/
 
-	s := "localhost:443"
+	s := ":443"
 
 	logger.Trace("Starting the HTTPS Listenner on " + s)
 
 	go http.ListenAndServeTLS(s, "server.crt", "server.key", nil)
 
 	// starting a redirection service from HTTP to HTTPS
-	req := "HTTP localhost:80 to HTTPS localhost:443"
+	req := "HTTP :80 to HTTPS :443"
 
 	logger.Trace("Starting the HTTP to HTTPS redirect Listenner " + req)
 
-	http.ListenAndServe("localhost:80", http.HandlerFunc(redirectToHTTPS))
+	http.ListenAndServe(":80", http.HandlerFunc(redirectToHTTPS))
 
 }
