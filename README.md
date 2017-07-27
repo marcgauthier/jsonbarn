@@ -1,15 +1,15 @@
-# Ecureuil v1.0 
-![](http://owlso.net/img/ecureuil.png)
+# JsonBarn v1.0 
+![](http://owlso.net/img/JsonBarn.png)
 
-[![GoDoc](https://godoc.org/github.com/marcgauthier/ecureuil?status.svg)](https://godoc.org/github.com/marcgauthier/ecureuil)
+[![GoDoc](https://godoc.org/github.com/marcgauthier/JsonBarn?status.svg)](https://godoc.org/github.com/marcgauthier/jsonbarn)
 
-**ECUREUIL** *(squirrel in french)* is a **light** self-hosted backend as a service for building realtime JavaScript (web) apps, Open Source and free.  It was build to allow developper to quickly build Single page App with real-time support without having to write a single line of backend code.  Ecureuil is developped in golang and relied on postgre Sql for it's database backend.  Ecureuil is a light framework it does not have many features just what you need!
+**JsonBarn** *(squirrel in french)* is a **light** self-hosted backend as a service for building realtime JavaScript (web) apps, Open Source and free.  It was build to allow developper to quickly build Single page App with real-time support without having to write a single line of backend code.  JsonBarn is developped in golang and relied on postgre Sql for it's database backend.  JsonBarn is a light framework it does not have many features just what you need!
 
 - Serve static content over https, http is automatically redirected to https
 - Provide access to database via client library api over secure websockets.
 - Real-time support, clients can select to register to receive changes commit to the database in near real-time.
 - Built for simplicity it allow you to start developing rapidly without having to learn a complicated API.  
-- Ecureuil is fully open source and develop in GOLANG.
+- JsonBarn is fully open source and develop in GOLANG.
 
 
 **Dependencies**
@@ -28,7 +28,7 @@
 	
 	
 * Source code
-	- https://github.com/marcgauthier/ecureuil 
+	- https://github.com/marcgauthier/jsonbarn 
 
 
 
@@ -121,37 +121,35 @@
 ## Getting Started
 
 
-1. Install you favorite linux distro, create a folder and copy [ecureuil executable](http://github.com/owlso/ecureuil) in it.
+1. Install you favorite linux distro, create a folder and copy [jsonbarn executable](http://github.com/owlso/jsonbarn) in it.
 1. Install [Postgre sql database](https://www.postgresql.org/) version 9.6 or higher.
-1. Build the database: sudo ./ecureuil -createdb -host=xxxxx -user=postgres -password=xxxxx 
+1. Build the database: sudo ./jsonbarn -createdb -host=xxxxx -user=postgres -password=xxxxx 
 
 	**Where**
 	Host is the IP of your postgre database 
 User is a user already existing in the database that have rights to create new database and new user
 password for this user.
 
-	*Provided username and password are not going to be saved, ecureuil will generate a new username **ecureuiladmin** with a random 30 characters password, this password will be save locally into ecureuil.db this file also contain the access rights for each users and the system configuration.  Only the user running ecureuil and the system admin should have access to this file.*
-
-	At any point if you want to uninstall ecureuil from your postgres you can do so with the following command:
-sudo ./ecureuil -dropdb -host=sql-ip -user=postgres -password=bitnami
+	At any point if you want to uninstall JsonBarn from your postgres you can do so with the following command:
+sudo ./JsonBarn -dropdb -host=sql-ip -user=postgres -password=bitnami
 
 
 
 ## The Javascript API
 
-In order to use ecureuil framework within you javascript application you simply need to import the javascript client.  This file is available in the public/ folder on github.  See bellow for the list of functions, events and properties you can access.
+In order to use JsonBarn framework within you javascript application you simply need to import the javascript client.  This file is available in the public/ folder on github.  See bellow for the list of functions, events and properties you can access.
 ```go
-<script src="js/ecureuil.js"></script>
-var ecureuil = new Ecureuil();
+<script src="js/JsonBarn.js"></script>
+var JsonBarn = new JsonBarn();
 
 ```
 
 ### **function getconfig();**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.getconfig();
+JsonBarn.getconfig();
 ```
 -	This function will contact the server and request the system configuration.  You must be logged-on with a user that has admin rights in order for the server to respond with the configuration.  The event **onread** will be fired once it is received.
 
@@ -159,13 +157,13 @@ ecureuil.getconfig();
 
 ### **function putconfig(configuration);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
 configuration = {};
 configuration.smtp.ip = 10.0.0.1;
 ...
-ecureuil.putconfig(configuration);
+JsonBarn.putconfig(configuration);
 ```
 -	This function will contact the server and request to overwrite the system configuration with the object provided.  You must be logged-on with a user that has admin rights in order for the server to accept your request.  
 
@@ -174,53 +172,53 @@ ecureuil.putconfig(configuration);
 
 ### **function getusers();**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
 ...
-ecureuil.getusers();
+JsonBarn.getusers();
 ```
 -	This function will contact the server and request the list of all users and their properties.  This allowed you to list all the user in the system and modify their configuration and access rights.  You must be logged-on with a user that has admin rights in order for the server to accept your request.  The event **onread** will be fired once the server reply with the list of users.  See the event **onread** to view the structure of the users object.
 
 ### **function time();**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
 ...
-ecureuil.time();
+JsonBarn.time();
 ```
 -	This function will contact the server and request the current time in UTC+0 in unix EPOCH.
 
 ### **function login(username, password);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ```
 -	This function provide the backend server with credential, once the credential are verified you will be granted access rights.  The event **onlogin** will be fired once the server reply to confirmed you have provided correct credentials.  Once the login is accepted it will remain until the websocket connection is closed.  If the websocket connection close you will have to provide credential again.
 
 
 ### **function logout();**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.logout();
+JsonBarn.logout();
 ```
 -	This function tell the backend to release all access rights granted to this websocket connection and grant access rights to a guess user.  The connection is not lost, only the access rights are discarded.  The function does not generate an event.
 
 ### **function registerevent(bucketname);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.registerevent(bucketname);
+JsonBarn.registerevent(bucketname);
 ```
 -	This function tell the backend to generate an event every time data in the bucket "bucketname" is updated, deleted or added.  Bucket are equivalent or collection in the NoSQL world or table in SQL database.  You must be logged-on with a user that have read access to the bucket your are requesting access to.  Events fired are **
 
@@ -228,91 +226,91 @@ ecureuil.registerevent(bucketname);
 
 ### **function unregisterevent(bucketname);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.registerevent(bucketname);
-ecureuil.unregisterevent(bucketname);
+JsonBarn.registerevent(bucketname);
+JsonBarn.unregisterevent(bucketname);
 ```
 -	This function work with registerevent, once you no longer want to receive event about changes inside a specific bucket you can unregister.  This function does not generate any event.
 
 ### **function setemailalert(emailaddress, bucketnames);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.setemailalert("marc.gauthier3@gmail.com", ["CHAT-MESSAGES", "GENERAL-INFO"]);
+JsonBarn.setemailalert("marc.gauthier3@gmail.com", ["CHAT-MESSAGES", "GENERAL-INFO"]);
 ```
--	Ecureuil broadcast change to the database via websocket but also send email alert when data is inserted or updated.  This function allow to request that a specific email receive alert about changes in specific buckets.  If the database already have a list of buckets to monitor for this specific email address they will be replaced with this new list of buckets.  The change will occur in two phase.  The call to setemailalert will generate a confirmation email to the user.  Once the user open his email and click on the confirmation link than the changes become permanent.
+-	JsonBarn broadcast change to the database via websocket but also send email alert when data is inserted or updated.  This function allow to request that a specific email receive alert about changes in specific buckets.  If the database already have a list of buckets to monitor for this specific email address they will be replaced with this new list of buckets.  The change will occur in two phase.  The call to setemailalert will generate a confirmation email to the user.  Once the user open his email and click on the confirmation link than the changes become permanent.
 
 
 ### **function connect(url);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.one("INCIDENTS", "starttime", 2321232, "BIGINT");
+JsonBarn.one("INCIDENTS", "starttime", 2321232, "BIGINT");
 ```
--	This will generate a websocket connection between the Ecureuil backend and the client library.  Once the connection is eastablished the event **onconnect** will be fired.  Your url must always start with wss Ecureuil only support secure connection and must end with /wss/ this is the path that the mux on the backend is expecting to indicate that a websocket connection is requested..
+-	This will generate a websocket connection between the JsonBarn backend and the client library.  Once the connection is eastablished the event **onconnect** will be fired.  Your url must always start with wss JsonBarn only support secure connection and must end with /wss/ this is the path that the mux on the backend is expecting to indicate that a websocket connection is requested..
 
 
 ### **function one(bucketname, searchfield, value, fieldtype);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.one("INCIDENTS", "starttime", 2321232, "BIGINT");
+JsonBarn.one("INCIDENTS", "starttime", 2321232, "BIGINT");
 ```
 -	This function will search the database for the first entry that will match the request.  You need to provide the bucketname where to search, the fieldname the value you are looking for and what type of field the fieldname represent; valid options are INT, BIGINT, TEXT, DECIMAL, DOUBLE. Once data is found and return the event **onread** will be fired.  
 
 ### **function many(bucketname, searchfield, value, fieldtype);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.many("INCIDENTS", "starttime", 2321232, "BIGINT");
+JsonBarn.many("INCIDENTS", "starttime", 2321232, "BIGINT");
 ```
 -	This function will search the database for all the entries that will match the request.  You need to provide the bucketname where to search, the fieldname the value you are looking for and what type of field the fieldname represent; valid options are INT, BIGINT, TEXT, DECIMAL, DOUBLE. Once data is found and return the event **onread** will be fired.  
 
 ### **function all(bucketname);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.all("INCIDENTS");
+JsonBarn.all("INCIDENTS");
 ```
 -	This function will return all items in the bucketname.  Note that the system configuration contain a limit on the number of items that can be returned default to 1,000,000 items. Once data is found and return the event **onread** will be fired.  
 
 ### **function range(bucketname, searchfield, minvalue, maxvalue, fieldtype)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.range("INCIDENTS", "status", 0, 1, "INT");
+JsonBarn.range("INCIDENTS", "status", 0, 1, "INT");
 ```
 -	This function will return all items in the bucketname that match a range values.  Note that the system configuration contain a limit on the number of items that can be returned default to 1,000,000 items. Once data is found and return the event **onread** will be fired.  
 
 ### **function query(bucketname, searchpattern);**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
 ...
-ecureuil.query("BULLETINS", 
+JsonBarn.query("BULLETINS", 
 [{"property":"Title", "type":"TEXT", "st":"EQ", "values":["Daily Scan"], "logic":"AND"}, 
  {"property":"Source", "type":"TEXT", "st":"EQ", "values":["Z"], "logic":"AND"},
  {"property":"status", "type":"INT", "st":"EQ", "values":["1"], "logic":""}
@@ -340,48 +338,48 @@ ecureuil.query("BULLETINS",
 
 ### **function indexcreate(indexname, field)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.indexname("idx_status", "status");
+JsonBarn.indexname("idx_status", "status");
 ```
 -	This function will create an index in the postgre database using the property provided.  If an index already exist a second one will be created.  Use indexlist to view the list of indexes already created in the database.  You need to be logged-on with admin privilege to be able to create indexes.
 
 
 ### **function indexlist()**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.indexlist();
+JsonBarn.indexlist();
 ```
 -	This function will return the list of all indexes that exists in the database. You need to be logged-on with admin privilege to be able to create indexes.  The event onindexes will be fired once the list has been received.
 
 
 ### **function indexdrop(indexname)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.indexdrop("idx_status");
+JsonBarn.indexdrop("idx_status");
 ```
 -	This function will remove an index from the database.  Use indexlist to view the list of indexes already created in the database.  You need to be logged-on with admin privilege to be able to drop indexes.
 
 
 ### **function insert(bucketname, object, defered)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.insert("BULLETINS", {"message":"Hello don't forget...", "time":1232141}, 4323243);
+JsonBarn.insert("BULLETINS", {"message":"Hello don't forget...", "time":1232141}, 4323243);
 ```
 -	This function is use to insert database into the database.  You must provide the bucketname where to put the information an a json object.  The last parameter defered is optional, defered is use if you want to insert the item automatically at a later time.  It must be an EPOCH value number of seconds after 1970 Jan 01 in UTC time zone. If defered is small than current time or not present the data is inserted right away.
 
@@ -402,12 +400,12 @@ Saving users, unlike other object USER must follow a specific structure, any pro
 
 ### **function update(bucketname, object, defered)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.update("BULLETINS", {"id": "84555e5f-4272-44d2-ac2f-92635876d16f", message":"Hello !!! don't forget...", "time":44444});
+JsonBarn.update("BULLETINS", {"id": "84555e5f-4272-44d2-ac2f-92635876d16f", message":"Hello !!! don't forget...", "time":44444});
 ```
 -	This function is use to update data into the database.  You must provide an object that contain at a minimum the property id and any other properties that you want to save in the object.  The last parameter defered is optional, defered is use if you want to insert the item automatically at a later time.  It must be an EPOCH value number of seconds after 1970 Jan 01 in UTC time zone. If defered is smaller than current time or not present the data is inserted right away.
 
@@ -427,12 +425,12 @@ Saving users, unlike other object USER must follow a specific structure, any pro
 
 ### **function delete(bucketname, object, defered)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ... once connection is eastablished you can call
-ecureuil.login(username, password);
+JsonBarn.login(username, password);
 ...
-ecureuil.delete("BULLETINS", {"id": "84555e5f-4272-44d2-ac2f-92635876d16f"});
+JsonBarn.delete("BULLETINS", {"id": "84555e5f-4272-44d2-ac2f-92635876d16f"});
 ```
 -	This function is use to delete item from the database.  You must provide an object that contain a property id.  The last parameter defered is optional, defered is use if you want to insert the item automatically at a later time.  It must be an EPOCH value number of seconds after 1970 Jan 01 in UTC time zone. If defered is smaller than current time or not present the data is deleted right away.
 
@@ -447,10 +445,10 @@ ecureuil.delete("BULLETINS", {"id": "84555e5f-4272-44d2-ac2f-92635876d16f"});
 
 ### **Event onupdate(object)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onupdate = function (object) {
+JsonBarn.onupdate = function (object) {
 	alert(JSON.stringify(object));
 }
 
@@ -472,10 +470,10 @@ Object return will have the following properties:
  
 ### **Event oninsert(object)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.oninsert = function (object) {
+JsonBarn.oninsert = function (object) {
 	alert(JSON.stringify(object));
 }
 
@@ -496,10 +494,10 @@ Object return will have the following properties:
 
 ### **Event ondelete(object)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.ondelete = function (object) {
+JsonBarn.ondelete = function (object) {
 	alert(JSON.stringify(object));
 }
 
@@ -523,36 +521,36 @@ Object return will have the following properties:
 
 ### **Event onconnect()**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onconnect = function () {
-	alert("A websocket connection is now eastablished with Ecureuil backend server.");
+JsonBarn.onconnect = function () {
+	alert("A websocket connection is now eastablished with JsonBarn backend server.");
 }
 
 ```
--	This event is called when a websocket is created between the browser and the Ecureuil backend server. No data is return by this event.
+-	This event is called when a websocket is created between the browser and the JsonBarn backend server. No data is return by this event.
 
 
 
 ### **Event ondisconnect()**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.ondisconnect = function () {
+JsonBarn.ondisconnect = function () {
 	alert("Your websocket connection has been terminated!");
 }
 
 ```
--	This event is called when a websocket has disconnected between the browser and the Ecureuil backend server. No data is return by this event.
+-	This event is called when a websocket has disconnected between the browser and the JsonBarn backend server. No data is return by this event.
 
 ### **Event onlogin(username, result)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onlogin = function (username, result) {
+JsonBarn.onlogin = function (username, result) {
 	if (result == "success") {
 	    alert("you are now logged in with " + username); 
     } else {
@@ -565,10 +563,10 @@ ecureuil.onlogin = function (username, result) {
 
 ### **Event onmessage(msg)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onmessage = function (msg) {
+JsonBarn.onmessage = function (msg) {
 	    alert(msg);
  }
 
@@ -577,10 +575,10 @@ ecureuil.onmessage = function (msg) {
 
 ### **Event ontime(seconds)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.ontime = function (seconds) {
+JsonBarn.ontime = function (seconds) {
 	    alert("current time on the server is: " + moment.unix(seconds).format());
  }
 
@@ -590,10 +588,10 @@ ecureuil.ontime = function (seconds) {
 
 ### **Event onread(bucketname, items)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onread = function (bucketname, items) {
+JsonBarn.onread = function (bucketname, items) {
 	    items.forEach(item) {
  			alert("receive:" + item.id + " from bucket: " + bucketname);       
         }
@@ -605,10 +603,10 @@ ecureuil.onread = function (bucketname, items) {
 
 ### **Event onerror(msg)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onerror = function (msg) {
+JsonBarn.onerror = function (msg) {
 	    alert("The following error just happen: " + msg);
  }
 
@@ -620,10 +618,10 @@ ecureuil.onerror = function (msg) {
 
 ### **Event onindexes(server, database)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onindexes = function (indexes) {
+JsonBarn.onindexes = function (indexes) {
    		indexes.forEach(item) {
  			alert("Index: " + item);
         }
@@ -634,10 +632,10 @@ ecureuil.onindexes = function (indexes) {
 	
 ### **Event onregisterevent(bucketname)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onregisterevent = function (bucketname) {
+JsonBarn.onregisterevent = function (bucketname) {
    		alert("You are now register to get changes for " + bucketname);
 }
 
@@ -647,10 +645,10 @@ ecureuil.onregisterevent = function (bucketname) {
 
 ### **Event onunregisterevent(bucketname)**
 ```go
-var ecureuil = new Ecureuil();
-ecureuil.connect("wss://yourwebsite.com/wss/");
+var JsonBarn = new JsonBarn();
+JsonBarn.connect("wss://yourwebsite.com/wss/");
 ...
-ecureuil.onunregisterevent = function (bucketname) {
+JsonBarn.onunregisterevent = function (bucketname) {
    		alert("You are now unregister to get changes for " + bucketname);
 }
 
@@ -662,44 +660,44 @@ ecureuil.onunregisterevent = function (bucketname) {
 
 - [connected](#propertyconnected) return true if you have a websocket connection
 ```go
-var ecureuil = new Ecureuil();
-if (ecureuil.connected == true) {
+var JsonBarn = new JsonBarn();
+if (JsonBarn.connected == true) {
  do something.
 }
 ```
 - [username](#propertyusername) return the name of the username 
 ```go
-var ecureuil = new Ecureuil();
-alert(ecureuil.username + " is the current user");
+var JsonBarn = new JsonBarn();
+alert(JsonBarn.username + " is the current user");
 }
 ```
 - [logged](#propertylogged) return true if you have provided a username and password
 ```go
-var ecureuil = new Ecureuil();
-if (ecureuil.logged == true) {
+var JsonBarn = new JsonBarn();
+if (JsonBarn.logged == true) {
  alert("you are currently loggedin");
 }
 ```
 - [registerevents](#propertyregisterevents) list of event you have registered.
 ```go
-var ecureuil = new Ecureuil();
-	forEach.ecureuil.registereventsconnected(function(item) { 
+var JsonBarn = new JsonBarn();
+	forEach.JsonBarn.registereventsconnected(function(item) { 
     	alert(item);
     });
 }
 ```
 - [serversocket](#propertyserversocket) websocket object if you need to access it directly.
 ```go
-var ecureuil = new Ecureuil();
-	ecureuil.serversocket.send("this info");
+var JsonBarn = new JsonBarn();
+	JsonBarn.serversocket.send("this info");
 }
 ```
 
 ### SERVER SIDE SECURITY
 
-Ecureuil only support secure connections any transaction started as HTTP are redirected to a HTTPS connection.  The backend does not support unsecured websocket connections.
+JsonBarn only support secure connections any transaction started as HTTP are redirected to a HTTPS connection.  The backend does not support unsecured websocket connections.
 
-Once the websocket connection is established client can transmit their username and password.  Since the websocket is persistent the server will remember the username and password until the websocket connection is disconnected.  There is no requirement to resend the username and password unless the connection need to be reastablished.  The Javascript ecureuil client **does not** store the password in memory, it is not recomanded to do so since your password would not be considered secured.
+Once the websocket connection is established client can transmit their username and password.  Since the websocket is persistent the server will remember the username and password until the websocket connection is disconnected.  There is no requirement to resend the username and password unless the connection need to be reastablished.  The Javascript JsonBarn client **does not** store the password in memory, it is not recomanded to do so since your password would not be considered secured.
 
 Because the websocket is persistent there is no sessionID that can be stolen.
 
@@ -739,7 +737,7 @@ subject string // html template for the subject
 The following properties are either required or are generating action by the database.
 
 -	property.$id
-	-	Each document in the bucket must have a unique id to be able to save and retrive information. You can manualy set the id or let Ecureuil generate the id automatically the later is suggested. 		
+	-	Each document in the bucket must have a unique id to be able to save and retrive information. You can manualy set the id or let JsonBarn generate the id automatically the later is suggested. 		
 
 -	property.$starttime			
 	-	Each document must have a starttime this is in most case the time that the document was created.  In some case you want data to be activated by time.  According to the starttime and endtime properties the status will be changed.
@@ -790,7 +788,7 @@ MonthlyDay - day of the month to recur on. e.g. 5 would recur on the 5th of ever
 Example of recurrence that start now and reoccured every 5 days at the same time.
 
 obj.recurrence = {};
-b.starttime = moment().add(10, 'seconds').utc().unix(); // Ecureuil want seconds!
+b.starttime = moment().add(10, 'seconds').utc().unix(); // JsonBarn want seconds!
 obj.recurrence.startdate = moment().utc().unix();	// start now
 obj.recurrence.duration = 60;
 obj.recurrence.recurrencepatterncode = "D";
@@ -817,7 +815,7 @@ obj.recurrence.recurevery = 5
 
 - [System errors](#simple-orm)
 
-	-	All error that occures in the ecureuil framework are saved into a subfolder call logs/ with rotating log files.  Logs also contain Info, Warning and Trace information.
+	-	All error that occures in the JsonBarn framework are saved into a subfolder call logs/ with rotating log files.  Logs also contain Info, Warning and Trace information.
         
 
 
