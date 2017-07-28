@@ -1,9 +1,9 @@
 # JsonBarn v1.0 
-![](http://owlso.net/img/JsonBarn.png)
+![](http://owlso.net/img/jsonbarn.png)
 
 [![GoDoc](https://godoc.org/github.com/marcgauthier/JsonBarn?status.svg)](https://godoc.org/github.com/marcgauthier/jsonbarn)
 
-**JsonBarn** *(squirrel in french)* is a **light** self-hosted backend as a service for building realtime JavaScript (web) apps, Open Source and free.  It was build to allow developper to quickly build Single page App with real-time support without having to write a single line of backend code.  JsonBarn is developped in golang and relied on postgre Sql for it's database backend.  JsonBarn is a light framework it does not have many features just what you need!
+**JsonBarn** is a **light** self-hosted backend as a service for building realtime JavaScript (web) apps, Open Source and free.  It was build to allow developper to quickly build Single page App with real-time support without having to write a single line of backend code.  JsonBarn is developped in golang and relied on postgre Sql for it's database backend.  JsonBarn is a light framework it does not have many features just what you need!
 
 - Serve static content over https, http is automatically redirected to https
 - Provide access to database via client library api over secure websockets.
