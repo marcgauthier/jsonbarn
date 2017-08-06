@@ -1,5 +1,6 @@
 # JsonBarn v1.0 
-![](http://owlso.net/img/jsonbarn.png)
+
+![alt text](https://github.com/marcgauthier/jsonbarn/jsonbarn.png)
 
 [![GoDoc](https://godoc.org/github.com/marcgauthier/JsonBarn?status.svg)](https://godoc.org/github.com/marcgauthier/jsonbarn)
 
