@@ -1,366 +1,165 @@
 /*
-______________________________________________________________________________
 
- Ecureuil - Web framework for real-time javascript app.
-_____________________________________________________________________________
-
-MIT License
-
-Copyright (c) 2014-2017 Marc Gauthier
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-______________________________________________________________________________
-
-
-This file contain the startup code for the backend server of ECUREUIL.
-
-
-
-______________________________________________________________________________________
-
-
-Revision:
-
-
-	01 Nov 2016 - Clean code, audit.
-
-
-
-______________________________________________________________________________
+This package role is to connect to a JSONBARN server, a secure websocket connection
+is eastablish and the client can listen to specific buckets 
 
 */
 
-package main
+package jsonbarn
 
 import (
-	"errors"
-	"flag"
-	"fmt"
-	"models"
-	"net/http"
-	"os"
-
-	"github.com/antigloss/go/logger"
-	"github.com/gorilla/mux"
+	"crypto/tls"
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
+	"net/url"
+	"fmt"
+	"errors"
+	"time"
 )
 
-// Object to upgrade an https connection to a WSS connection
 
-var upgrader = websocket.Upgrader{} // use default options
-
-/*
-
-Handle the request to open a Websocket service connection, a Client object
-will be created to maintain informtion about the connectin and
-to push broadcast when database changes occur.
-
+/* This Public variable can be changed to show details of operation on the console for debuging
 */
+var ShowTrace bool = true 
 
-func wsPage(w http.ResponseWriter, r *http.Request) {
+/* Size of the buffer for the receive channel, the minimum size is 128, default size is 2048 
+*/
+var Bufsize int = 2048
 
-	conn, err := upgrader.Upgrade(w, r, nil)
 
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	models.ClientAdd(conn)
-
+/* JsonBarn object 
+*/
+type JsonBarn struct {
+	c         *websocket.Conn
+	Ch		  chan []byte		//receive channel
+	exit      bool
+	connected bool
+	loggedIn  bool
+	showtrace bool
+	NewDialer *websocket.Dialer
 }
 
-/*
-	Handle all request for a static files.  The OWLSO backend does answer to
-	request for Data in the database but also server static files.
-	The files are not server from a folder but from the database itself.
-	Any files stored in the database is public user does not require
-	special rights to read them.
 
+/* function to show debug info 
 */
-
-type appHandler func(http.ResponseWriter, *http.Request) (int, error)
-
-// Our appHandler type will now satisify http.Handler
-func (fn appHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if status, err := fn(w, r); err != nil {
-
-		logger.Error(err.Error())
-
-		switch status {
-		// We can have cases as granular as we like, if we wanted to
-		// return custom errors for specific status codes.
-		//  case http.StatusNotFound:
-		//      notFound(w, r)
-
-		case http.StatusInternalServerError:
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		default:
-			// Catch any other errors we haven't explicitly handled
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+func trace(msg string) {
+	if ShowTrace && len(msg) > 0 {
+		fmt.Println(msg)
 	}
 }
 
-/*
-	Handle all request for a static files see previous comment for appHandler.
-
+/* create new item
 */
-
-func myHandler(w http.ResponseWriter, r *http.Request) (int, error) {
-
-	filepath := ""
-
-	// only answer GET request.
-
-	if r.Method == "GET" {
-
-		// if home page is root redirect to index.html
-
-		if r.URL.Path == "/" {
-			filepath = "/index.html"
-
-		} else if r.URL.Path == "/confirm/" { // use for email alert confirmation
-
-			// https://"+Configuration.Addr+"/confirm/?id="+Info.ID)"
-			logger.Trace("Receive Email Alert confirmation, verifying")
-			queryValues := r.URL.Query()
-			ID := queryValues.Get("ID")
-			if ID == "" {
-				logger.Trace("ID was not provided for email alert confirmation")
-				w.Write([]byte("No ID request was provided!"))
-				return http.StatusOK, nil
-			}
-
-			err := models.ReceiveConfirmationEmailAlert(ID)
-			if err == nil {
-				logger.Trace("Email Alert processed!")
-				w.Write([]byte("Your request to change email alerts has been approved!"))
-				return http.StatusOK, nil
-			}
-			logger.Trace("Email Alert ID was not found!")
-			w.Write([]byte("The ID request you have provided cannot be found!"))
-			return http.StatusOK, nil
-
-		} else {
-
-			filepath = r.URL.Path
-		}
-
-		// Extract the file from the database if present, GetStaticFile will use
-		// cache is available and return file content into a buffer.  see static-files.go
-
-		buffer, ext, err := models.GetStaticFile(filepath)
-
-		if err != nil || buffer == nil {
-			logger.Warn("HTTP REQ not found (GET): " + filepath)
-			return http.StatusNotFound, errors.New(http.StatusText(http.StatusNotFound)) // ... and again.
-		}
-
-		// Verify what type of file we just requested, the function GetStaticFile always return the ext in lowercase.
-		// We must set the content-type variable that we will be returning to the client.
-
-		if ext == ".css" {
-			w.Header().Set("Content-Type", "text/css")
-		} else if ext == ".jpg" || ext == ".jpeg" {
-			w.Header().Set("Content-Type", "image/jpeg")
-		} else if ext == ".png" {
-			w.Header().Set("Content-Type", "image/png")
-		} else if ext == ".js" {
-			w.Header().Set("Content-Type", "application/javascript")
-		}
-
-		// Content-Length will be set automatically
-
-		w.Write(buffer)
-
+func New() JsonBarn {
+	if Bufsize <= 128 {
+		Bufsize = 128
 	}
-
-	return http.StatusOK, nil
+	return JsonBarn{c: nil, exit: false, Ch: make(chan []byte, Bufsize), connected: false, loggedIn: false, NewDialer: &websocket.Dialer{}}
 }
 
-/*
 
-	If incoming request is for http redirect to same url but with https
-	Ecureuil framework does not serve file over HTTP only HTTPS
 
-*/
-
-func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
-	// Redirect the incoming HTTP request to HTTPS
-	logger.Trace("redirecting http REQ to https://" + r.Host + r.URL.String())
-	http.Redirect(w, r,
-		"https://"+r.Host+r.URL.String(),
-		http.StatusMovedPermanently)
+func (j *JsonBarn) Send(msg string) error {
+	if j==nil {
+		return errors.New("JsonBarnIsNil")
+	}
+	if !j.loggedIn {
+		return errors.New("NotLoggedIn")
+	}
+	if !j.connected {
+		return errors.New("NotConnected")
+	}
+	if j.c == nil {
+		return errors.New("ConnectionObjectNil")
+	}
+	return j.c.WriteMessage(websocket.TextMessage, []byte(msg))
+	
 }
 
-/* main program function check for command line parameter and run program as requested.
+func (j *JsonBarn) Close() error {
+	if j==nil {
+		return errors.New("JsonBarnIsNil")
+	}
+	j.c.Close()
+	j.loggedIn = false
+	j.connected = false
+	j.exit = true
+	return nil
+}
 
-example:
-
-	Create an SQL database
-		sudo ./ecureuil -createdb -host=192.168.56.101 -user=postgres -password=bitnami
-
-	Remove an SQL database
-		sudo ./ecureuil -dropdb -host=192.168.56.101 -user=postgres -password=bitnami
-
-	Start Ecureuil server
-		sudo ./ecureuil -host=192.168.56.101 -user=postgres -password=bitnami
-
-
-	-trace will output more information on stdout
-*/
-
-func main() {
-
-	// get command line flags
-
-	user := flag.String("user", "", "postgresql user name with admin rights")
-	password := flag.String("password", "", "postgresql user password")
-	host := flag.String("host", "", "postgresql server ip or hostname")
-	boolPtr := flag.Bool("createdb", false, "a bool")
-	boolPtr2 := flag.Bool("dropdb", false, "a bool")
-	showTraceFlag := flag.Bool("trace", false, "a bool")
-
-	flag.Parse()
-
-	if *boolPtr {
-		result := models.CreateDB(host, user, password)
-		fmt.Println(result)
-		os.Exit(0)
-		return
+// jsonBarn.Create
+func (j *JsonBarn) Connect(Host, Port, Path, username, password string, tlsConfig *tls.Config) error {
+	if j==nil {
+		return errors.New("JsonBarnIsNil")
+	}
+	if tlsConfig == nil {
+		j.NewDialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	} else {
+		j.NewDialer.TLSClientConfig = tlsConfig
 	}
 
-	if *boolPtr2 {
-		result := models.DropDB(host, user, password)
-		fmt.Println(result)
-		os.Exit(0)
-		return
-	}
+	go func() {
 
-	showTrace := false
-	if *showTraceFlag {
-		showTrace = true
-	}
+		var err error
+		u := url.URL{Scheme: "wss", Host: Host + ":" + Port, Path: Path}
 
-	if *host == "" {
 		for {
-			fmt.Println("Enter Postgre host/ip: ")
-			input := ""
-			fmt.Scanln(&input)
-			if input != "" {
+			if j.exit {
 				break
 			}
-			*host = input
-		}
-	}
 
-	if *user == "" {
-		for {
-			fmt.Println("Enter Postgre username: ")
-			input := ""
-			fmt.Scanln(&input)
-			if input != "" {
-				break
+			if !j.connected {
+				j.loggedIn = false
+				for {
+					trace("connecting " + u.String())
+					j.c, _, err = j.NewDialer.Dial(u.String(), nil)
+					if err != nil {
+						time.Sleep(time.Second)
+					} else {
+						j.connected = true
+						trace("sending login " + username + " " + password)
+						m := `{"$jsonbarn_action": "LOGIN", "$jsonbarn_username": "` + username + `", "$jsonbarn_password": "` + password + `"}`
+						err = j.c.WriteMessage(websocket.TextMessage, []byte(m))
+						break
+					}
+				}
 			}
-			*user = input
-		}
-	}
 
-	if *password == "" {
-		for {
-			fmt.Println("Enter Postgre password: ")
-			input := ""
-			fmt.Scanln(&input)
-			if input != "" {
-				break
+
+			_, message, err := j.c.ReadMessage()
+			if err != nil {
+				j.connected = false
+				j.loggedIn = false
+			} else {
+				
+				msg := string(message)
+				trace("rx " + string(message))
+						
+				// validate json
+				if !gjson.Valid(msg) {
+					continue
+				}
+				value := gjson.Get(msg, "$login")
+				if value.Exists() {
+					trace("logged in!")
+					j.loggedIn = true
+				}
+				trace("sending message into rx channel ")
+		
+				for {
+					select {
+						case  j.Ch <- message:
+							break
+						default:
+							// oups buffer is full we have to wait until it's not 
+							time.Sleep(100 * time.Nanosecond)
+					}
+				}
+    
 			}
-			*password = input
 		}
-	}
+	}()
 
-	// create folder for storing log files if it does not exists.
-	path := "./log"
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		os.Mkdir(path, os.ModeDir)
-	}
-
-	// logger options are Trace, Info, Warn, Error, Panic and Abort
-	// logs are saved into the log/ folder
-
-	logger.Init("./log", // specify the directory to save the logfiles
-		300,       // maximum logfiles allowed under the specified log directory
-		20,        // number of logfiles to delete when number of logfiles exceeds the configured limit
-		1,         // maximum size of a logfile in MB
-		showTrace) // whether logs with Trace level are written down
-
-	logger.SetLogToConsole(true) // show all log on the monitor and save to disk
-
-	// Initialize file cache for static file (static-files.go)
-	models.InitFileCache()
-
-	/* OPEN database, initialize and create default values if required */
-	models.Open(*host, *user, *password)
-	defer models.Close()
-
-	logger.Trace("Database opened!")
-
-	/* start the hub that broadcast messages to all Websocket connections */
-	logger.Trace("Starting the HUB go routine")
-	models.HubStart()
-
-	/* Create HTTPS mux router */
-	r := mux.NewRouter()
-	r.HandleFunc("/wss/", wsPage)                    // websocket request
-	r.PathPrefix("/").Handler(appHandler(myHandler)) // any other request check for static files
-	http.Handle("/", r)
-
-	// check for SSL certificates
-	/* if server.crt or server.key does not exists create the files!! */
-
-	CertificateExists, _ := models.FileExists("server.crt")
-
-	KeyExists, _ := models.FileExists("server.key")
-
-	if !CertificateExists || !KeyExists {
-
-		logger.Panic("SSL certificates don't exists (server.crt and server.key...)")
-
-		os.Exit(0)
-	}
-
-	/*
-		Start the webserver and respond to HTTPS request only listen on all interfaces.
-	*/
-
-	s := ":443"
-
-	logger.Trace("Starting the HTTPS Listenner on " + s)
-
-	go http.ListenAndServeTLS(s, "server.crt", "server.key", nil)
-
-	// starting a redirection service from HTTP to HTTPS
-	req := "HTTP :80 to HTTPS :443"
-
-	logger.Trace("Starting the HTTP to HTTPS redirect Listenner " + req)
-
-	http.ListenAndServe(":80", http.HandlerFunc(redirectToHTTPS))
+	return nil
 
 }
